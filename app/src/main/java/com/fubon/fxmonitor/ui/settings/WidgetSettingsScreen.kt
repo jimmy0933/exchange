@@ -41,7 +41,7 @@ fun WidgetSettingsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("桌面 Widget 設定") },
+                title = { Text("我的匯率｜Widget 設定") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -128,7 +128,7 @@ fun WidgetSettingsScreen(
 
             // Selected Currencies & Reordering
             item {
-                Text("已選擇顯示幣別及排序 (可調整順序)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("已選擇顯示幣別及排序 (最多 2 個幣別)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
 
             itemsIndexed(uiState.selectedCurrencies) { index, code ->
@@ -173,7 +173,7 @@ fun WidgetSettingsScreen(
 
             // Available Currencies Selection
             item {
-                Text("新增 / 移除 幣別", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("新增 / 移除 幣別 (最多選擇 2 個)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(4.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -186,9 +186,11 @@ fun WidgetSettingsScreen(
                         ) {
                             CurrencyCode.entries.forEach { code ->
                                 val isSelected = uiState.selectedCurrencies.contains(code)
+                                val canSelect = isSelected || uiState.selectedCurrencies.size < 2
                                 FilterChip(
                                     selected = isSelected,
-                                    onClick = { viewModel.toggleCurrency(code) },
+                                    onClick = { if (canSelect) viewModel.toggleCurrency(code) },
+                                    enabled = canSelect,
                                     label = { Text("${code.flagEmoji} ${code.name}") }
                                 )
                             }
@@ -199,7 +201,7 @@ fun WidgetSettingsScreen(
 
             // Live Board Preview
             item {
-                Text("Widget 預覽效果", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("1x1 Widget 預覽效果", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(4.dp))
                 WidgetPreviewCard(
                     rateType = uiState.rateType,
@@ -231,92 +233,82 @@ fun WidgetPreviewCard(
     selectedCurrencies: List<CurrencyCode>,
     rates: List<ExchangeRate>
 ) {
+    val currencies = selectedCurrencies.take(2).ifEmpty { listOf(CurrencyCode.USD) }
+    val isSingle = currencies.size == 1
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF17212F)) // Dark mode board theme
+        modifier = Modifier
+            .width(180.dp)
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF17212F))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "台北富邦｜${if (rateType == RateType.SPOT) "即期匯率" else "現鈔匯率"}",
-                    color = Color(0xFFF8FAFC),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
-                )
-                Text(
-                    text = "即時看板",
-                    color = Color(0xFFCBD5E1),
-                    fontSize = 12.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Color(0xFF334155))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Table Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("幣別", color = Color(0xFFCBD5E1), fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1.2f))
-                Text("銀行買入", color = Color(0xFFCBD5E1), fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                Text("銀行賣出", color = Color(0xFFCBD5E1), fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-            }
-
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "1x1 Widget 預覽｜${if (rateType == RateType.SPOT) "即期" else "現鈔"}",
+                color = Color(0xFFCBD5E1),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium
+            )
             Spacer(modifier = Modifier.height(6.dp))
 
-            selectedCurrencies.take(6).forEach { code ->
+            if (isSingle) {
+                val code = currencies.first()
                 val rate = rates.find { it.currency == code }
                 val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
                 val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
-
                 val buyStr = buyVal?.toPlainString() ?: "未提供"
                 val sellStr = sellVal?.toPlainString() ?: "未提供"
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${code.flagEmoji} ${code.name}",
-                        color = Color(0xFFF8FAFC),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1.2f)
-                    )
-                    Text(
-                        text = buyStr,
-                        color = Color(0xFFF8FAFC),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = sellStr,
-                        color = Color(0xFF38BDF8),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Text(code.name, color = Color(0xFFF8FAFC), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("22:34", color = Color(0xFF94A3B8), fontSize = 10.sp)
                 }
-                HorizontalDivider(color = Color(0xFF334155).copy(alpha = 0.5f))
-            }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row {
+                    Text("買 ", color = Color(0xFFCBD5E1), fontSize = 11.sp)
+                    Text(buyStr, color = Color(0xFFF8FAFC), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Row {
+                    Text("賣 ", color = Color(0xFFCBD5E1), fontSize = 11.sp)
+                    Text(sellStr, color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                currencies.forEachIndexed { index, code ->
+                    val rate = rates.find { it.currency == code }
+                    val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
+                    val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
+                    val buyStr = buyVal?.toPlainString() ?: "未提供"
+                    val sellStr = sellVal?.toPlainString() ?: "未提供"
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "最後更新：14:30",
-                color = Color(0xFF64748B),
-                fontSize = 11.sp
-            )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(code.name, color = Color(0xFFF8FAFC), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Row {
+                            Text(buyStr, color = Color(0xFFF8FAFC), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            Text(" / ", color = Color(0xFF64748B), fontSize = 11.sp)
+                            Text(sellStr, color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (index < currencies.size - 1) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text("22:34", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                }
+            }
         }
     }
 }

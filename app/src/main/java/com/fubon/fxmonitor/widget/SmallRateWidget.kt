@@ -61,101 +61,181 @@ fun SmallWidgetContent(
     allRates: Map<String, LatestRateEntity>
 ) {
     val context = LocalContext.current
+    val currencies = config.selectedCurrencies.take(2).ifEmpty { listOf(CurrencyCode.USD) }
+    val isSingle = currencies.size == 1
+
     val intent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        if (isSingle) {
+            putExtra("target_currency", currencies.first().name)
+        }
     }
 
-    val code = config.selectedCurrencies.firstOrNull() ?: CurrencyCode.USD
-    val rateEntity = allRates[code.name]
-
     val isCash = config.rateType == RateType.CASH
-    val buyVal = if (isCash) rateEntity?.cashBuy else rateEntity?.spotBuy
-    val sellVal = if (isCash) rateEntity?.cashSell else rateEntity?.spotSell
-
-    val buyStr = buyVal ?: "未提供"
-    val sellStr = sellVal ?: "未提供"
-
-    val officialTime = rateEntity?.officialUpdateTime ?: "未更新"
 
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .cornerRadius(16.dp)
+            .cornerRadius(12.dp)
             .background(Color(0xFF17212F))
-            .padding(10.dp)
+            .padding(6.dp)
             .clickable(actionStartActivity(intent)),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.Start
     ) {
-        val formattedTime = extractTime(officialTime)
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "台北富邦｜${if (isCash) "現鈔" else "即期"}",
-                style = TextStyle(
-                    color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            )
-            Spacer(modifier = GlanceModifier.defaultWeight())
-            Text(
-                text = if (formattedTime == "未更新") "未更新" else "更新 $formattedTime",
-                style = TextStyle(
-                    color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
-                    fontSize = 9.sp
-                )
-            )
-        }
-        Spacer(modifier = GlanceModifier.height(4.dp))
-        Text(
-            text = "${code.flagEmoji} ${code.name}",
-            style = TextStyle(
-                color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
-        )
-        Spacer(modifier = GlanceModifier.height(6.dp))
+        if (isSingle) {
+            val code = currencies.first()
+            val rateEntity = allRates[code.name]
+            val buyVal = if (isCash) rateEntity?.cashBuy else rateEntity?.spotBuy
+            val sellVal = if (isCash) rateEntity?.cashSell else rateEntity?.spotSell
 
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val buyStr = buyVal ?: "未提供"
+            val sellStr = sellVal ?: "未提供"
+
+            val officialTime = rateEntity?.officialUpdateTime ?: "未更新"
+            val formattedTime = extractTime(officialTime)
+
+            // Row 1: Code + Time
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "買入",
-                    style = TextStyle(
-                        color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)),
-                        fontSize = 10.sp
-                    )
-                )
-                Text(
-                    text = buyStr,
+                    text = code.name,
                     style = TextStyle(
                         color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
-            }
-            Spacer(modifier = GlanceModifier.width(12.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = GlanceModifier.defaultWeight())
                 Text(
-                    text = "賣出",
+                    text = formattedTime,
+                    style = TextStyle(
+                        color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
+                        fontSize = 10.sp
+                    )
+                )
+            }
+
+            Spacer(modifier = GlanceModifier.height(3.dp))
+
+            // Row 2: Buy Rate
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "買 ",
                     style = TextStyle(
                         color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)),
-                        fontSize = 10.sp
+                        fontSize = 11.sp
+                    )
+                )
+                Text(
+                    text = buyStr,
+                    style = TextStyle(
+                        color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+
+            Spacer(modifier = GlanceModifier.height(1.dp))
+
+            // Row 3: Sell Rate
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "賣 ",
+                    style = TextStyle(
+                        color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)),
+                        fontSize = 11.sp
                     )
                 )
                 Text(
                     text = sellStr,
                     style = TextStyle(
                         color = androidx.glance.unit.ColorProvider(Color(0xFF38BDF8)),
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
+                    )
+                )
+            }
+        } else {
+            // Dual Currency Mode
+            var latestTime = "未更新"
+
+            currencies.forEachIndexed { index, code ->
+                val rateEntity = allRates[code.name]
+                val buyVal = if (isCash) rateEntity?.cashBuy else rateEntity?.spotBuy
+                val sellVal = if (isCash) rateEntity?.cashSell else rateEntity?.spotSell
+
+                val buyStr = buyVal ?: "未提供"
+                val sellStr = sellVal ?: "未提供"
+
+                if (rateEntity?.officialUpdateTime != null) {
+                    latestTime = extractTime(rateEntity.officialUpdateTime)
+                }
+
+                Row(
+                    modifier = GlanceModifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = code.name,
+                        style = TextStyle(
+                            color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Spacer(modifier = GlanceModifier.defaultWeight())
+                    Text(
+                        text = buyStr,
+                        style = TextStyle(
+                            color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    Text(
+                        text = " / ",
+                        style = TextStyle(
+                            color = androidx.glance.unit.ColorProvider(Color(0xFF64748B)),
+                            fontSize = 10.sp
+                        )
+                    )
+                    Text(
+                        text = sellStr,
+                        style = TextStyle(
+                            color = androidx.glance.unit.ColorProvider(Color(0xFF38BDF8)),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+
+                if (index < currencies.size - 1) {
+                    Spacer(modifier = GlanceModifier.height(2.dp))
+                }
+            }
+
+            Spacer(modifier = GlanceModifier.defaultWeight())
+
+            // Row 3: Timestamp
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = latestTime,
+                    style = TextStyle(
+                        color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
+                        fontSize = 9.sp
                     )
                 )
             }

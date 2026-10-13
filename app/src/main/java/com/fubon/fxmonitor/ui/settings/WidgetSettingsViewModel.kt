@@ -20,7 +20,7 @@ data class WidgetSettingsUiState(
     val activeWidgetIds: List<String> = emptyList(),
     val selectedWidgetId: String = "default_widget",
     val rateType: RateType = RateType.SPOT,
-    val selectedCurrencies: List<CurrencyCode> = CurrencyCode.DEFAULT_FAVORITES,
+    val selectedCurrencies: List<CurrencyCode> = listOf(CurrencyCode.USD),
     val availableRates: List<ExchangeRate> = emptyList(),
     val isSaved: Boolean = false
 )
@@ -62,10 +62,11 @@ class WidgetSettingsViewModel @Inject constructor(
     private fun loadConfigForWidget(widgetId: String) {
         viewModelScope.launch {
             userPrefs.getWidgetConfig(widgetId).first().let { config ->
+                val currencies = config.selectedCurrencies.take(2).ifEmpty { listOf(CurrencyCode.USD) }
                 _uiState.update {
                     it.copy(
                         rateType = config.rateType,
-                        selectedCurrencies = config.selectedCurrencies
+                        selectedCurrencies = currencies
                     )
                 }
             }
@@ -90,7 +91,7 @@ class WidgetSettingsViewModel @Inject constructor(
             if (current.contains(code)) {
                 if (current.size > 1) current.remove(code)
             } else {
-                current.add(code)
+                if (current.size < 2) current.add(code)
             }
             state.copy(selectedCurrencies = current, isSaved = false)
         }
@@ -124,7 +125,7 @@ class WidgetSettingsViewModel @Inject constructor(
             val config = WidgetConfig(
                 appWidgetId = state.selectedWidgetId,
                 rateType = state.rateType,
-                selectedCurrencies = state.selectedCurrencies
+                selectedCurrencies = state.selectedCurrencies.take(2)
             )
             userPrefs.saveWidgetConfig(config)
             WidgetUpdater.updateAllWidgets(context)

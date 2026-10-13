@@ -9,6 +9,7 @@ import com.fubon.fxmonitor.domain.model.RateType
 import com.fubon.fxmonitor.domain.usecase.ConversionDirection
 import com.fubon.fxmonitor.domain.usecase.ExchangeCalculatorUseCase
 import com.fubon.fxmonitor.ui.detail.TimeRange
+import com.fubon.fxmonitor.widget.extractTime
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -204,6 +205,37 @@ class FubonFXMonitorUnitTest {
 
         assertEquals(BigDecimal("0.2000"), diff)
         assertEquals("0.62", pct.setScale(2, RoundingMode.HALF_UP).toPlainString())
+    }
+
+    @Test
+    fun testExtractTimeFromOfficialUpdateTime() {
+        assertEquals("22:34", extractTime("2026/10/13 22:34:00"))
+        assertEquals("22:34", extractTime("22:34"))
+        assertEquals("09:15", extractTime("10/13 09:15:30"))
+        assertEquals("未更新", extractTime("未更新"))
+    }
+
+    @Test
+    fun testSmallWidget1x1SelectionAndCashFallback() {
+        val currencies = listOf(CurrencyCode.USD, CurrencyCode.JPY, CurrencyCode.CNY)
+        val selected = currencies.take(2)
+        assertEquals(2, selected.size)
+        assertEquals(CurrencyCode.USD, selected[0])
+        assertEquals(CurrencyCode.JPY, selected[1])
+
+        val gbpRate = ExchangeRate(
+            currency = CurrencyCode.GBP,
+            spotBuy = BigDecimal("41.50"),
+            spotSell = BigDecimal("41.80"),
+            cashBuy = null,
+            cashSell = null,
+            officialUpdateTime = "2026/10/13 22:34:00"
+        )
+        val cashBuyStr = gbpRate.cashBuy?.toPlainString() ?: "未提供"
+        val cashSellStr = gbpRate.cashSell?.toPlainString() ?: "未提供"
+
+        assertEquals("未提供", cashBuyStr)
+        assertEquals("未提供", cashSellStr)
     }
 
     @Test
