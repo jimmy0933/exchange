@@ -1,6 +1,7 @@
 package com.fubon.fxmonitor.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.math.BigDecimal
 
@@ -18,7 +19,13 @@ data class LatestRateEntity(
     val displayOrder: Int = 0
 )
 
-@Entity(tableName = "rate_history")
+@Entity(
+    tableName = "rate_history",
+    indices = [
+        Index(value = ["currencyCode", "timestamp"]),
+        Index(value = ["currencyCode", "officialUpdateTime"], unique = true)
+    ]
+)
 data class RateHistoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val currencyCode: String,
@@ -28,7 +35,8 @@ data class RateHistoryEntity(
     val cashSell: String?,
     val officialUpdateTime: String,
     val timestamp: Long,
-    val isOfficialDaily: Boolean = false
+    val isOfficialDaily: Boolean = false,
+    val source: String = "台北富邦銀行"
 )
 
 @Entity(tableName = "exchange_alerts")
