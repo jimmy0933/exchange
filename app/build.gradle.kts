@@ -21,8 +21,20 @@ android {
     }
 
     signingConfigs {
-        // Reserve space for future release signing configuration if needed.
-        // Currently, debug builds use Android default debug keystore.
+        getByName("debug") {
+            val keystoreFilePath = System.getenv("KEYSTORE_FILE")
+            if (!keystoreFilePath.isNullOrEmpty()) {
+                val ksFile = file(keystoreFilePath)
+                if (ksFile.exists()) {
+                    storeFile = ksFile
+                    storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                    keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+                    keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+                } else {
+                    throw GradleException("Specified KEYSTORE_FILE does not exist: ${ksFile.absolutePath}")
+                }
+            }
+        }
     }
 
     buildTypes {
