@@ -74,10 +74,18 @@ fun MediumWidgetContent(
             .fillMaxSize()
             .cornerRadius(16.dp)
             .background(Color(0xFF17212F))
-            .padding(12.dp)
+            .padding(10.dp)
             .clickable(actionStartActivity(intent))
     ) {
-        // Header
+        // Find latest official update time across displayed currencies
+        for (code in displayCurrencies) {
+            val entity = allRates[code.name]
+            if (entity?.officialUpdateTime != null) {
+                latestOfficialTime = entity.officialUpdateTime
+            }
+        }
+
+        // Header with title and update time on the same line
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -86,8 +94,17 @@ fun MediumWidgetContent(
                 text = "台北富邦｜${if (isCash) "現鈔匯率" else "即期匯率"}",
                 style = TextStyle(
                     color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
+                )
+            )
+            Spacer(modifier = GlanceModifier.defaultWeight())
+            val formattedTime = extractTime(latestOfficialTime)
+            Text(
+                text = if (formattedTime == "未更新") "未更新" else "更新 $formattedTime",
+                style = TextStyle(
+                    color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
+                    fontSize = 10.sp
                 )
             )
         }
@@ -101,17 +118,17 @@ fun MediumWidgetContent(
         ) {
             Text(
                 text = "幣別",
-                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 11.sp),
+                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 11.sp, fontWeight = FontWeight.Medium),
                 modifier = GlanceModifier.defaultWeight()
             )
             Text(
                 text = "銀行買入",
-                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 11.sp),
+                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 11.sp, fontWeight = FontWeight.Medium),
                 modifier = GlanceModifier.defaultWeight()
             )
             Text(
                 text = "銀行賣出",
-                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 11.sp),
+                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 11.sp, fontWeight = FontWeight.Medium),
                 modifier = GlanceModifier.defaultWeight()
             )
         }
@@ -121,10 +138,6 @@ fun MediumWidgetContent(
         // Currency Rows
         for (code in displayCurrencies) {
             val entity = allRates[code.name]
-            if (entity?.officialUpdateTime != null) {
-                latestOfficialTime = entity.officialUpdateTime
-            }
-
             val buyVal = if (isCash) entity?.cashBuy else entity?.spotBuy
             val sellVal = if (isCash) entity?.cashSell else entity?.spotSell
 
@@ -164,16 +177,6 @@ fun MediumWidgetContent(
                 )
             }
         }
-
-        Spacer(modifier = GlanceModifier.defaultWeight())
-
-        Text(
-            text = "更新：${extractTime(latestOfficialTime)}",
-            style = TextStyle(
-                color = androidx.glance.unit.ColorProvider(Color(0xFF64748B)),
-                fontSize = 10.sp
-            )
-        )
     }
 }
 
