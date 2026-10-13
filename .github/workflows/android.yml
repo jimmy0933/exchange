@@ -152,11 +152,3 @@ EOF
       with:
         name: app-debug
         path: app/build/outputs/apk/debug/*.apk
-
-    - name: Upload Fingerprint Report Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: apk-signature-fingerprints
-        path: |
-          apk_signature_fingerprints.txt
-          app/build/outputs/apk/debug/*.sha256

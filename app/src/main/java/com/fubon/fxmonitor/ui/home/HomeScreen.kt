@@ -31,11 +31,32 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.refreshStatus) {
+        val status = uiState.refreshStatus
+        if (status !is RefreshStatus.Idle) {
+            val msg = when (status) {
+                is RefreshStatus.Success -> status.message
+                is RefreshStatus.NoChange -> status.message
+                is RefreshStatus.Error -> status.message
+                else -> ""
+            }
+            if (msg.isNotEmpty()) {
+                snackbarHostState.showSnackbar(
+                    message = msg,
+                    duration = SnackbarDuration.Short
+                )
+                viewModel.clearRefreshStatus()
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Fubon FX Monitor", fontWeight = FontWeight.Bold) },
+                title = { Text("我的匯率", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
@@ -86,7 +107,7 @@ fun HomeScreen(
                 }
             }
 
-            // Controls Header (Spot/Cash selector + Refresh)
+            // Controls Header (Spot/Cash selector + Prominent Refresh Button)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -111,14 +132,27 @@ fun HomeScreen(
                     }
                 }
 
-                IconButton(
+                Button(
                     onClick = { viewModel.refreshData() },
-                    enabled = !uiState.isRefreshing
+                    enabled = !uiState.isRefreshing,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     if (uiState.isRefreshing) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("更新中...")
                     } else {
-                        Icon(Icons.Default.Refresh, contentDescription = "重新整理")
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("更新匯率")
                     }
                 }
             }
@@ -186,6 +220,9 @@ fun CurrencyCard(
     val buyVal = if (selectedType == RateType.SPOT) rate.spotBuy else rate.cashBuy
     val sellVal = if (selectedType == RateType.SPOT) rate.spotSell else rate.cashSell
 
+    val buyStr = buyVal?.toPlainString() ?: "未提供"
+    val sellStr = sellVal?.toPlainString() ?: "未提供"
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -232,8 +269,8 @@ fun CurrencyCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                RateBox(title = "銀行買入", value = buyVal?.toPlainString() ?: "N/A")
-                RateBox(title = "銀行賣出", value = sellVal?.toPlainString() ?: "N/A", isHighlighted = true)
+                RateBox(title = "銀行買入", value = buyStr)
+                RateBox(title = "銀行賣出", value = sellStr, isHighlighted = true)
             }
         }
     }

@@ -3,7 +3,6 @@ package com.fubon.fxmonitor.ui.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -20,7 +19,8 @@ import java.util.*
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onNavigateToWidgetSettings: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -49,6 +49,28 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item {
+                Text("桌面 Widget 設定", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("自選幣別、排序與即期/現鈔模式:", fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = onNavigateToWidgetSettings,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("開啟 桌面 Widget 設定")
+                        }
+                    }
+                }
+            }
+
             item {
                 Text("背景監控設定", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
@@ -147,13 +169,8 @@ fun SettingsScreen(
                         Text("最後成功更新時間: $formattedTime")
                         Text("官方資料來源: 台北富邦銀行官方網站 / 無障礙官方頁面")
                         Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(onClick = { viewModel.refreshRatesNow() }) {
-                                Text("手動重新整理")
-                            }
-                            OutlinedButton(onClick = { viewModel.clearCache() }) {
-                                Text("清除歷史快取")
-                            }
+                        OutlinedButton(onClick = { viewModel.clearCache() }) {
+                            Text("清除歷史快取")
                         }
                     }
                 }

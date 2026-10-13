@@ -18,13 +18,22 @@ interface WidgetEntryPoint {
 
 object WidgetUpdater {
     suspend fun updateAllWidgets(context: Context) {
-        val entryPoint = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java)
-        val rateDao = entryPoint.rateDao()
-        val latestRates = rateDao.getAllLatestRates()
-
         SmallRateWidget().updateAll(context)
         MediumRateWidget().updateAll(context)
         LargeRateWidget().updateAll(context)
+    }
+
+    suspend fun getPlacedWidgetIds(context: Context): List<String> {
+        val manager = GlanceAppWidgetManager(context)
+        val ids = mutableListOf<String>()
+        val smalls = manager.getGlanceIds(SmallRateWidget::class.java)
+        val mediums = manager.getGlanceIds(MediumRateWidget::class.java)
+        val larges = manager.getGlanceIds(LargeRateWidget::class.java)
+
+        (smalls + mediums + larges).forEach { glanceId ->
+            ids.add(glanceId.toString())
+        }
+        return ids
     }
 
     private suspend fun GlanceAppWidget.updateAll(context: Context) {
