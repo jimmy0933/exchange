@@ -17,18 +17,21 @@ import androidx.glance.text.TextStyle
 import com.fubon.fxmonitor.MainActivity
 import com.fubon.fxmonitor.data.local.AppDatabase
 import com.fubon.fxmonitor.data.local.LatestRateEntity
+import com.fubon.fxmonitor.domain.model.CurrencyCode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 class SmallRateWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val rateDao = AppDatabase.getInstance(context).rateDao()
-        val usdRate = withContext(Dispatchers.IO) {
-            rateDao.getLatestRate("USD")
+        val rates = withContext(Dispatchers.IO) {
+            rateDao.getAllLatestRates().first()
         }
+        val topRate = rates.firstOrNull { it.isFavorite } ?: rates.firstOrNull()
 
         provideContent {
-            SmallWidgetContent(usdRate)
+            SmallWidgetContent(topRate)
         }
     }
 }
@@ -38,7 +41,11 @@ fun SmallWidgetContent(rate: LatestRateEntity?) {
     val context = LocalContext.current
     val intent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        if (rate != null) putExtra("target_currency", rate.currencyCode)
     }
+
+    val currency = rate?.let { CurrencyCode.fromString(it.currencyCode) } ?: CurrencyCode.USD
+    val isStale = rate != null && (System.currentTimeMillis() - rate.localFetchTime > 30 * 60 * 1000)
 
     Column(
         modifier = GlanceModifier
@@ -49,16 +56,16 @@ fun SmallWidgetContent(rate: LatestRateEntity?) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "美金 (USD)",
+            text = "${currency.displayName} (${currency.name})",
             style = TextStyle(fontWeight = FontWeight.Bold)
         )
         Spacer(modifier = GlanceModifier.height(4.dp))
         Text(
-            text = "即期賣出: ${rate?.spotSell ?: "N/A"}",
+            text = "即賣: ${rate?.spotSell ?: "N/A"}",
             style = TextStyle(fontWeight = FontWeight.Medium)
         )
         Text(
-            text = "現鈔賣出: ${rate?.cashSell ?: "N/A"}",
+            text = "現賣: ${rate?.cashSell ?: "N/A"}",
             style = TextStyle(fontWeight = FontWeight.Normal)
         )
         Spacer(modifier = GlanceModifier.height(4.dp))
@@ -66,6 +73,12 @@ fun SmallWidgetContent(rate: LatestRateEntity?) {
             text = rate?.officialUpdateTime ?: "未更新",
             style = TextStyle(fontWeight = FontWeight.Normal)
         )
+        if (isStale) {
+            Text(
+                text = "⚠️ 資料過期",
+                style = TextStyle(fontWeight = FontWeight.Bold)
+            )
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 package com.fubon.fxmonitor.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fubon.fxmonitor.data.local.ErrorLogDao
@@ -7,7 +8,9 @@ import com.fubon.fxmonitor.data.local.ErrorLogEntity
 import com.fubon.fxmonitor.data.local.RateDao
 import com.fubon.fxmonitor.data.local.UserPreferencesRepository
 import com.fubon.fxmonitor.data.repository.ExchangeRateRepository
+import com.fubon.fxmonitor.worker.ExchangeMonitorWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,7 +29,8 @@ class SettingsViewModel @Inject constructor(
     private val userPrefs: UserPreferencesRepository,
     private val rateDao: RateDao,
     private val errorLogDao: ErrorLogDao,
-    private val repository: ExchangeRateRepository
+    private val repository: ExchangeRateRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -45,14 +49,15 @@ class SettingsViewModel @Inject constructor(
                 userPrefs.darkMode,
                 userPrefs.lastSuccessTime,
                 errorLogDao.getErrorLogs()
-            ) { interval, sound, vibration, dark, lastSuccess, logs ->
+            ) { args ->
+                @Suppress("UNCHECKED_CAST")
                 SettingsUiState(
-                    intervalMins = interval,
-                    soundEnabled = sound,
-                    vibrationEnabled = vibration,
-                    darkMode = dark,
-                    lastSuccessTime = lastSuccess,
-                    errorLogs = logs
+                    intervalMins = args[0] as Int,
+                    soundEnabled = args[1] as Boolean,
+                    vibrationEnabled = args[2] as Boolean,
+                    darkMode = args[3] as Boolean,
+                    lastSuccessTime = args[4] as Long,
+                    errorLogs = args[5] as List<ErrorLogEntity>
                 )
             }.collect { newState ->
                 _uiState.value = newState
@@ -63,6 +68,7 @@ class SettingsViewModel @Inject constructor(
     fun setInterval(mins: Int) {
         viewModelScope.launch {
             userPrefs.setBackgroundInterval(mins)
+            ExchangeMonitorWorker.schedule(context, mins.toLong())
         }
     }
 

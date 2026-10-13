@@ -27,6 +27,7 @@ data class DetailUiState(
     val currencyCode: CurrencyCode = CurrencyCode.USD,
     val latestRate: ExchangeRate? = null,
     val history: List<RateHistoryEntity> = emptyList(),
+    val filteredHistory: List<RateHistoryEntity> = emptyList(),
     val selectedTimeRange: TimeRange = TimeRange.WEEK,
     val selectedRateType: RateType = RateType.SPOT,
     val highPrice: String = "N/A",
@@ -61,8 +62,19 @@ class DetailViewModel @Inject constructor(
             ) { latestList, historyList, range, type ->
                 val latest = latestList.find { it.currency == currency }
 
-                // Calculate stats
-                val rates = historyList.mapNotNull { hist ->
+                val now = System.currentTimeMillis()
+                val cutoff = when (range) {
+                    TimeRange.TODAY -> now - 24 * 60 * 60 * 1000L
+                    TimeRange.WEEK -> now - 7 * 24 * 60 * 60 * 1000L
+                    TimeRange.MONTH -> now - 30 * 24 * 60 * 60 * 1000L
+                    TimeRange.THREE_MONTHS -> now - 90 * 24 * 60 * 60 * 1000L
+                    TimeRange.SIX_MONTHS -> now - 180 * 24 * 60 * 60 * 1000L
+                }
+
+                val filtered = historyList.filter { it.timestamp >= cutoff }
+
+                // Calculate stats on filtered subset
+                val rates = filtered.mapNotNull { hist ->
                     val str = if (type == RateType.SPOT) hist.spotSell else hist.cashSell
                     str?.toBigDecimalOrNull()
                 }
@@ -82,11 +94,11 @@ class DetailViewModel @Inject constructor(
                     low = minVal?.toPlainString() ?: "N/A"
                     avg = avgVal.toPlainString()
 
-                    if (rates.size >= 2 && minVal != null && minVal.compareTo(BigDecimal.ZERO) != 0) {
-                        val first = rates.last()
-                        val last = rates.first()
-                        val diff = last.subtract(first)
-                        val pct = diff.divide(first, 6, RoundingMode.HALF_UP).multiply(BigDecimal("100"))
+                    if (rates.size >= 2 && rates.last().compareTo(BigDecimal.ZERO) > 0) {
+                        val oldestInWindow = rates.last()
+                        val newestInWindow = rates.first()
+                        val diff = newestInWindow.subtract(oldestInWindow)
+                        val pct = diff.divide(oldestInWindow, 6, RoundingMode.HALF_UP).multiply(BigDecimal("100"))
                         pctStr = "${if (pct >= BigDecimal.ZERO) "+" else ""}${pct.setScale(2, RoundingMode.HALF_UP)}%"
                     }
                 }
@@ -95,6 +107,7 @@ class DetailViewModel @Inject constructor(
                     it.copy(
                         latestRate = latest,
                         history = historyList,
+                        filteredHistory = filtered,
                         highPrice = high,
                         lowPrice = low,
                         avgPrice = avg,

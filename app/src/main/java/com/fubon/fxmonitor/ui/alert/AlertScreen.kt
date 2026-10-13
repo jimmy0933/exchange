@@ -155,10 +155,10 @@ fun AlertCard(
     val bankSideLabel = if (alert.bankSide == "BUY") "銀行買入" else "銀行賣出"
 
     val conditionLabel = when (TriggerCondition.fromString(alert.triggerCondition)) {
-        TriggerCondition.GREATER_EQUAL -> "≥ ${alert.targetValue}"
-        TriggerCondition.LESS_EQUAL -> "≤ ${alert.targetValue}"
-        TriggerCondition.SINGLE_CHANGE_PCT -> "單次變動 ≥ ${alert.targetValue}%"
-        TriggerCondition.DAILY_CHANGE_PCT -> "每日變動 ≥ ${alert.targetValue}%"
+        TriggerCondition.GREATER_EQUAL -> "≥ ${alert.targetValue} TWD"
+        TriggerCondition.LESS_EQUAL -> "≤ ${alert.targetValue} TWD"
+        TriggerCondition.SINGLE_CHANGE_PCT -> "單次漲跌 ≥ ${alert.targetValue}%"
+        TriggerCondition.DAILY_CHANGE_PCT -> "每日漲跌 ≥ ${alert.targetValue}%"
     }
 
     Card(
@@ -198,6 +198,7 @@ fun AlertCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddAlertDialog(
     uiState: AlertUiState,
@@ -250,17 +251,54 @@ fun AddAlertDialog(
                     )
                 }
 
+                // Condition Selection Selector
+                Text("觸發條件:", fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TriggerCondition.entries.chunked(2).forEach { row ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { condition ->
+                                FilterChip(
+                                    selected = uiState.selectedCondition == condition,
+                                    onClick = { onConditionChange(condition) },
+                                    label = { Text(condition.label) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (!uiState.isQuoteAvailable) {
+                    Text(
+                        text = "⚠️ 該幣別無此類型報價 (N/A)",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (uiState.errorMessage != null) {
+                    Text(
+                        text = uiState.errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
                 OutlinedTextField(
                     value = uiState.targetValueInput,
                     onValueChange = onValueChange,
-                    label = { Text("目標價格或百分比") },
+                    label = { Text("目標數值 (${uiState.selectedCondition.unit})") },
+                    suffix = { Text(uiState.selectedCondition.unit) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(
+                onClick = onConfirm,
+                enabled = uiState.isQuoteAvailable
+            ) {
                 Text("儲存")
             }
         },

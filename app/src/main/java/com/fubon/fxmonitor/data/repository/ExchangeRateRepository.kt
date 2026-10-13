@@ -1,11 +1,14 @@
 package com.fubon.fxmonitor.data.repository
 
+import androidx.room.withTransaction
 import com.fubon.fxmonitor.data.local.*
 import com.fubon.fxmonitor.data.remote.ExchangeRateProvider
 import com.fubon.fxmonitor.domain.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.math.BigDecimal
 import java.math.RoundingMode
 import javax.inject.Inject
@@ -14,62 +17,68 @@ import javax.inject.Singleton
 @Singleton
 class ExchangeRateRepository @Inject constructor(
     private val rateProvider: ExchangeRateProvider,
+    private val db: AppDatabase,
     private val rateDao: RateDao,
     private val errorLogDao: ErrorLogDao,
     private val userPrefs: UserPreferencesRepository
 ) {
 
+    private val refreshMutex = Mutex()
+
     val latestRates: Flow<List<ExchangeRate>> = rateDao.getAllLatestRates().map { entities ->
         entities.map { it.toDomain() }
     }
 
-    suspend fun refreshRates(): Result<List<ExchangeRate>> {
+    suspend fun refreshRates(): Result<List<ExchangeRate>> = refreshMutex.withLock {
         val result = rateProvider.fetchRates()
         return result.fold(
             onSuccess = { rates ->
                 val now = System.currentTimeMillis()
                 userPrefs.setLastSuccessTime(now)
 
-                // Get existing favorites mapping
-                val existingEntities = rateDao.getAllLatestRates().first().associateBy { it.currencyCode }
+                db.withTransaction {
+                    val existingEntities = rateDao.getAllLatestRates().first().associateBy { it.currencyCode }
 
-                val entitiesToInsert = rates.mapIndexed { index, rate ->
-                    val existing = existingEntities[rate.currency.name]
-                    val isFav = existing?.isFavorite ?: CurrencyCode.DEFAULT_FAVORITES.contains(rate.currency)
-                    val order = existing?.displayOrder ?: index
+                    val entitiesToInsert = rates.mapIndexed { index, rate ->
+                        val existing = existingEntities[rate.currency.name]
+                        val isFav = existing?.isFavorite ?: CurrencyCode.DEFAULT_FAVORITES.contains(rate.currency)
+                        val order = existing?.displayOrder ?: index
 
-                    LatestRateEntity(
-                        currencyCode = rate.currency.name,
-                        spotBuy = rate.spotBuy?.toPlainString(),
-                        spotSell = rate.spotSell?.toPlainString(),
-                        cashBuy = rate.cashBuy?.toPlainString(),
-                        cashSell = rate.cashSell?.toPlainString(),
-                        officialUpdateTime = rate.officialUpdateTime,
-                        localFetchTime = now,
-                        source = rate.source,
-                        isFavorite = isFav,
-                        displayOrder = order
-                    )
-                }
-
-                rateDao.insertLatestRates(entitiesToInsert)
-
-                // Save to history deduplicating by officialUpdateTime
-                for (rate in rates) {
-                    val existingHist = rateDao.getHistoryByOfficialTime(rate.currency.name, rate.officialUpdateTime)
-                    if (existingHist == null) {
-                        rateDao.insertHistory(
-                            RateHistoryEntity(
-                                currencyCode = rate.currency.name,
-                                spotBuy = rate.spotBuy?.toPlainString(),
-                                spotSell = rate.spotSell?.toPlainString(),
-                                cashBuy = rate.cashBuy?.toPlainString(),
-                                cashSell = rate.cashSell?.toPlainString(),
-                                officialUpdateTime = rate.officialUpdateTime,
-                                timestamp = now,
-                                isOfficialDaily = false
-                            )
+                        LatestRateEntity(
+                            currencyCode = rate.currency.name,
+                            spotBuy = rate.spotBuy?.toPlainString(),
+                            spotSell = rate.spotSell?.toPlainString(),
+                            cashBuy = rate.cashBuy?.toPlainString(),
+                            cashSell = rate.cashSell?.toPlainString(),
+                            officialUpdateTime = rate.officialUpdateTime,
+                            localFetchTime = now,
+                            source = rate.source,
+                            isFavorite = isFav,
+                            displayOrder = order
                         )
+                    }
+
+                    rateDao.insertLatestRates(entitiesToInsert)
+
+                    // Save to rate_history deduplicating by valid officialUpdateTime
+                    for (rate in rates) {
+                        if (isValidOfficialTime(rate.officialUpdateTime)) {
+                            val existingHist = rateDao.getHistoryByOfficialTime(rate.currency.name, rate.officialUpdateTime)
+                            if (existingHist == null) {
+                                rateDao.insertHistory(
+                                    RateHistoryEntity(
+                                        currencyCode = rate.currency.name,
+                                        spotBuy = rate.spotBuy?.toPlainString(),
+                                        spotSell = rate.spotSell?.toPlainString(),
+                                        cashBuy = rate.cashBuy?.toPlainString(),
+                                        cashSell = rate.cashSell?.toPlainString(),
+                                        officialUpdateTime = rate.officialUpdateTime,
+                                        timestamp = now,
+                                        isOfficialDaily = false
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -82,6 +91,12 @@ class ExchangeRateRepository @Inject constructor(
                 Result.failure(error)
             }
         )
+    }
+
+    private fun isValidOfficialTime(timeStr: String): Boolean {
+        if (timeStr.isBlank() || timeStr.contains("最新牌價")) return false
+        val regex = Regex("""\d{4}/\d{2}/\d{2}""")
+        return regex.containsMatchIn(timeStr)
     }
 
     suspend fun toggleFavorite(currency: CurrencyCode, isFavorite: Boolean) {

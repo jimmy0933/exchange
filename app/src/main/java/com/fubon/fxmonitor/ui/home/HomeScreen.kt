@@ -1,6 +1,5 @@
 package com.fubon.fxmonitor.ui.home
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,8 +17,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.fubon.fxmonitor.domain.model.CurrencyCode
 import com.fubon.fxmonitor.domain.model.RateType
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,47 +127,53 @@ fun HomeScreen(
             val favorites = uiState.rates.filter { it.isFavorite }
             val others = uiState.rates.filter { !it.isFavorite }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (favorites.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "⭐ 我的收藏",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                    }
-                    items(favorites, key = { "fav_${it.rate.currency.name}" }) { cardState ->
-                        CurrencyCard(
-                            cardState = cardState,
-                            selectedType = uiState.rateType,
-                            onCardClick = { onCurrencyClick(cardState.rate.currency.name) },
-                            onFavoriteToggle = { viewModel.toggleFavorite(cardState.rate.currency, !cardState.isFavorite) }
-                        )
-                    }
+            if (uiState.rates.isEmpty() && !uiState.isRefreshing) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("尚無匯率資料，請點擊右上方重新整理", color = Color.Gray)
                 }
-
-                if (others.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "所有幣別",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                        )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (favorites.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "⭐ 我的收藏",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+                        items(favorites, key = { "fav_${it.rate.currency.name}" }) { cardState ->
+                            CurrencyCard(
+                                cardState = cardState,
+                                selectedType = uiState.rateType,
+                                onCardClick = { onCurrencyClick(cardState.rate.currency.name) },
+                                onFavoriteToggle = { viewModel.toggleFavorite(cardState.rate.currency, !cardState.isFavorite) }
+                            )
+                        }
                     }
-                    items(others, key = { "other_${it.rate.currency.name}" }) { cardState ->
-                        CurrencyCard(
-                            cardState = cardState,
-                            selectedType = uiState.rateType,
-                            onCardClick = { onCurrencyClick(cardState.rate.currency.name) },
-                            onFavoriteToggle = { viewModel.toggleFavorite(cardState.rate.currency, !cardState.isFavorite) }
-                        )
+
+                    if (others.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "所有幣別",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                            )
+                        }
+                        items(others, key = { "other_${it.rate.currency.name}" }) { cardState ->
+                            CurrencyCard(
+                                cardState = cardState,
+                                selectedType = uiState.rateType,
+                                onCardClick = { onCurrencyClick(cardState.rate.currency.name) },
+                                onFavoriteToggle = { viewModel.toggleFavorite(cardState.rate.currency, !cardState.isFavorite) }
+                            )
+                        }
                     }
                 }
             }
@@ -185,6 +191,20 @@ fun CurrencyCard(
     val rate = cardState.rate
     val buyVal = if (selectedType == RateType.SPOT) rate.spotBuy else rate.cashBuy
     val sellVal = if (selectedType == RateType.SPOT) rate.spotSell else rate.cashSell
+
+    val changeAmount = if (selectedType == RateType.SPOT) cardState.spotChangeAmount else cardState.cashChangeAmount
+    val changePct = if (selectedType == RateType.SPOT) cardState.spotChangePct else cardState.cashChangePct
+
+    val changeColor = when {
+        changePct != null && changePct > 0 -> Color(0xFFD32F2F) // Red for up
+        changePct != null && changePct < 0 -> Color(0xFF388E3C) // Green for down
+        else -> Color.Gray
+    }
+
+    val changeText = if (changeAmount != null && changePct != null) {
+        val sign = if (changePct >= 0) "+" else ""
+        "$sign${changeAmount.setScale(4, RoundingMode.HALF_UP).toPlainString()} ($sign${BigDecimal(changePct).setScale(2, RoundingMode.HALF_UP)}%)"
+    } else null
 
     Card(
         modifier = Modifier
@@ -217,12 +237,23 @@ fun CurrencyCard(
                     }
                 }
 
-                IconButton(onClick = onFavoriteToggle) {
-                    Icon(
-                        imageVector = if (cardState.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
-                        contentDescription = "收藏",
-                        tint = if (cardState.isFavorite) Color(0xFFFFB300) else Color.Gray
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (changeText != null) {
+                        Text(
+                            text = changeText,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = changeColor,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                    }
+                    IconButton(onClick = onFavoriteToggle) {
+                        Icon(
+                            imageVector = if (cardState.isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                            contentDescription = "收藏",
+                            tint = if (cardState.isFavorite) Color(0xFFFFB300) else Color.Gray
+                        )
+                    }
                 }
             }
 

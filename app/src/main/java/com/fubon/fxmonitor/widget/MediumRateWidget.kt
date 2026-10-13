@@ -17,6 +17,7 @@ import androidx.glance.text.TextStyle
 import com.fubon.fxmonitor.MainActivity
 import com.fubon.fxmonitor.data.local.AppDatabase
 import com.fubon.fxmonitor.data.local.LatestRateEntity
+import com.fubon.fxmonitor.domain.model.CurrencyCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -24,9 +25,12 @@ import kotlinx.coroutines.withContext
 class MediumRateWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val rateDao = AppDatabase.getInstance(context).rateDao()
-        val rates = withContext(Dispatchers.IO) {
-            rateDao.getAllLatestRates().first().take(3)
+        val allRates = withContext(Dispatchers.IO) {
+            rateDao.getAllLatestRates().first()
         }
+        val favorites = allRates.filter { it.isFavorite }
+        val others = allRates.filter { !it.isFavorite }
+        val rates = (favorites + others).take(3)
 
         provideContent {
             MediumWidgetContent(rates)
@@ -41,32 +45,48 @@ fun MediumWidgetContent(rates: List<LatestRateEntity>) {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     }
 
+    val isStale = rates.firstOrNull()?.let {
+        System.currentTimeMillis() - it.localFetchTime > 30 * 60 * 1000
+    } ?: false
+
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .padding(12.dp)
             .clickable(actionStartActivity(intent))
     ) {
-        Text(
-            text = "台北富邦銀行 匯率監控",
-            style = TextStyle(fontWeight = FontWeight.Bold)
-        )
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = "台北富邦 匯率精選 ${if (isStale) "⚠️(過期)" else ""}",
+                style = TextStyle(fontWeight = FontWeight.Bold)
+            )
+        }
         Spacer(modifier = GlanceModifier.height(8.dp))
         for (rate in rates) {
+            val code = CurrencyCode.fromString(rate.currencyCode) ?: CurrencyCode.USD
             Row(
                 modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
                 horizontalAlignment = Alignment.Start
             ) {
                 Text(
-                    text = "${rate.currencyCode}: ",
+                    text = "${code.name}: ",
                     style = TextStyle(fontWeight = FontWeight.Bold)
                 )
                 Text(
-                    text = "即買 ${rate.spotBuy ?: "N/A"} / 即賣 ${rate.spotSell ?: "N/A"}",
+                    text = "即賣 ${rate.spotSell ?: "N/A"} / 現賣 ${rate.cashSell ?: "N/A"}",
                     style = TextStyle(fontWeight = FontWeight.Normal)
                 )
             }
         }
+        Spacer(modifier = GlanceModifier.height(4.dp))
+        val lastTime = rates.firstOrNull()?.officialUpdateTime ?: "尚未更新"
+        Text(
+            text = "牌告時間: $lastTime",
+            style = TextStyle(fontWeight = FontWeight.Normal)
+        )
     }
 }
 

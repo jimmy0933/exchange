@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -40,51 +41,11 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IllegalStateException("HTTP error code: ${response.code}")
-
-        val html = response.body?.string() ?: throw IllegalStateException("Empty body from primary source")
-        val doc = Jsoup.parse(html)
-
-        // Parse official update time e.g., 2026/10/13 09:23:31
-        val timeElement = doc.selectFirst(".ico-date")
-        val fullTimeText = timeElement?.text() ?: ""
-        val officialTime = parseOfficialTime(fullTimeText)
-
-        val rates = mutableListOf<ExchangeRate>()
-        val rows = doc.select("table.rate-table tbody tr")
-
-        for (row in rows) {
-            val cols = row.select("td")
-            if (cols.size >= 5) {
-                val currencyText = cols[1].text()
-                val code = parseCurrencyCode(currencyText) ?: continue
-
-                val spotText = cols[3].text()
-                val cashText = cols[4].text()
-
-                val (spotBuy, spotSell) = parsePair(spotText)
-                val (cashBuy, cashSell) = parsePair(cashText)
-
-                rates.add(
-                    ExchangeRate(
-                        currency = code,
-                        spotBuy = spotBuy,
-                        spotSell = spotSell,
-                        cashBuy = cashBuy,
-                        cashSell = cashSell,
-                        officialUpdateTime = officialTime,
-                        source = "台北富邦銀行"
-                    )
-                )
-            }
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IllegalStateException("HTTP error code: ${response.code}")
+            val html = response.body?.string() ?: throw IllegalStateException("Empty body from primary source")
+            parseHtml(html, sourceName = "台北富邦銀行")
         }
-
-        if (rates.isEmpty()) {
-            throw IllegalStateException("Failed to parse rates from primary source")
-        }
-
-        return rates
     }
 
     private fun fetchBackup(): List<ExchangeRate> {
@@ -93,63 +54,88 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IllegalStateException("HTTP error code from backup: ${response.code}")
-
-        val html = response.body?.string() ?: throw IllegalStateException("Empty body from backup source")
-        val doc = Jsoup.parse(html)
-
-        // Fallback parser implementation for backup official page
-        val rates = mutableListOf<ExchangeRate>()
-        val timeText = doc.select("span, div").find { it.text().contains("時間") || it.text().contains("日期") }?.text() ?: ""
-        val officialTime = parseOfficialTime(timeText).ifEmpty { "最新牌價" }
-
-        val rows = doc.select("table tr")
-        for (row in rows) {
-            val text = row.text()
-            for (code in CurrencyCode.entries) {
-                if (text.contains(code.name) || text.contains(code.displayName)) {
-                    val numbers = Regex("""\d+\.\d+""").findAll(text).map { it.value }.toList()
-                    if (numbers.size >= 4) {
-                        rates.add(
-                            ExchangeRate(
-                                currency = code,
-                                spotBuy = numbers[0].toBigDecimalOrNull(),
-                                spotSell = numbers[1].toBigDecimalOrNull(),
-                                cashBuy = numbers[2].toBigDecimalOrNull(),
-                                cashSell = numbers[3].toBigDecimalOrNull(),
-                                officialUpdateTime = officialTime,
-                                source = "台北富邦銀行(無障礙版)"
-                            )
-                        )
-                    } else if (numbers.size >= 2) {
-                        rates.add(
-                            ExchangeRate(
-                                currency = code,
-                                spotBuy = numbers[0].toBigDecimalOrNull(),
-                                spotSell = numbers[1].toBigDecimalOrNull(),
-                                cashBuy = null,
-                                cashSell = null,
-                                officialUpdateTime = officialTime,
-                                source = "台北富邦銀行(無障礙版)"
-                            )
-                        )
-                    }
-                    break
-                }
-            }
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IllegalStateException("HTTP error code from backup: ${response.code}")
+            val html = response.body?.string() ?: throw IllegalStateException("Empty body from backup source")
+            parseHtml(html, sourceName = "台北富邦銀行(備援)")
         }
-
-        if (rates.isEmpty()) {
-            throw IllegalStateException("Failed to parse rates from backup source")
-        }
-
-        return rates
     }
 
-    private fun parseOfficialTime(text: String): String {
-        val regex = Regex("""\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2}""")
-        return regex.find(text)?.value ?: text.replace("更新", "").trim()
+    fun parseHtml(html: String, sourceName: String = "台北富邦銀行"): List<ExchangeRate> {
+        val doc = Jsoup.parse(html)
+
+        val officialTime = parseOfficialTime(doc)
+            ?: throw IllegalStateException("Failed to parse official update time from HTML")
+
+        val ratesMap = mutableMapOf<CurrencyCode, ExchangeRate>()
+        val tables = doc.select("table")
+
+        for (table in tables) {
+            val headerCols = table.select("thead tr th, thead tr td, tr:first-child th, tr:first-child td")
+            var currencyColIdx = -1
+            var spotColIdx = -1
+            var cashColIdx = -1
+
+            headerCols.forEachIndexed { idx, cell ->
+                val txt = cell.text()
+                if (txt.contains("幣別")) currencyColIdx = idx
+                if (txt.contains("即期")) spotColIdx = idx
+                if (txt.contains("現鈔")) cashColIdx = idx
+            }
+
+            // Fallback column index defaults if header is standard Fubon format (1: currency, 3: spot, 4: cash)
+            if (currencyColIdx == -1) currencyColIdx = 1
+            if (spotColIdx == -1) spotColIdx = 3
+            if (cashColIdx == -1) cashColIdx = 4
+
+            val rows = table.select("tbody tr, tr")
+
+            for (row in rows) {
+                val cols = row.select("td, th")
+                if (cols.size <= currencyColIdx) continue
+
+                val currencyText = cols[currencyColIdx].text()
+                val code = parseCurrencyCode(currencyText) ?: continue
+
+                if (ratesMap.containsKey(code)) continue
+
+                val spotText = if (cols.size > spotColIdx) cols[spotColIdx].text() else ""
+                val cashText = if (cols.size > cashColIdx) cols[cashColIdx].text() else ""
+
+                val (spotBuy, spotSell) = parsePair(spotText)
+                val (cashBuy, cashSell) = parsePair(cashText)
+
+                // Must have at least valid spot quotes or cash quotes
+                if (spotBuy == null && spotSell == null && cashBuy == null && cashSell == null) {
+                    continue
+                }
+
+                ratesMap[code] = ExchangeRate(
+                    currency = code,
+                    spotBuy = spotBuy,
+                    spotSell = spotSell,
+                    cashBuy = cashBuy,
+                    cashSell = cashSell,
+                    officialUpdateTime = officialTime,
+                    source = sourceName
+                )
+            }
+
+            if (ratesMap.isNotEmpty()) break
+        }
+
+        if (ratesMap.isEmpty()) {
+            throw IllegalStateException("Failed to parse rates from HTML")
+        }
+
+        return ratesMap.values.toList()
+    }
+
+    private fun parseOfficialTime(doc: Document): String? {
+        val fullText = doc.text()
+        val regex = Regex("""\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}(:\d{2})?""")
+        val match = regex.find(fullText)
+        return match?.value
     }
 
     private fun parseCurrencyCode(text: String): CurrencyCode? {
@@ -157,17 +143,19 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
         if (codeMatch != null) {
             return CurrencyCode.fromString(codeMatch.groupValues[1])
         }
-        return CurrencyCode.entries.find { text.contains(it.name) || text.contains(it.displayName) }
+        return CurrencyCode.entries.find {
+            text.contains(it.name, ignoreCase = true) || text.contains(it.displayName)
+        }
     }
 
     private fun parsePair(text: String): Pair<BigDecimal?, BigDecimal?> {
-        if (text.contains("---") || text.isBlank()) {
+        if (text.contains("---") || text.contains("N/A") || text.isBlank()) {
             return Pair(null, null)
         }
-        val parts = text.split(Regex("""\s+""")).filter { it.isNotBlank() }
-        if (parts.size >= 2) {
-            val buy = parts[0].toBigDecimalOrNull()
-            val sell = parts[1].toBigDecimalOrNull()
+        val numbers = Regex("""\d+\.\d+""").findAll(text).map { it.value }.toList()
+        if (numbers.size >= 2) {
+            val buy = numbers[0].toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO }
+            val sell = numbers[1].toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO }
             return Pair(buy, sell)
         }
         return Pair(null, null)

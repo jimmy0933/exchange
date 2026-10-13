@@ -1,12 +1,11 @@
 package com.fubon.fxmonitor
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -38,13 +37,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Schedule periodic background worker
-        ExchangeMonitorWorker.schedule(this, 15)
-
+        // Read background interval from preferences and schedule worker
         val targetCurrency = intent?.getStringExtra("target_currency")
 
         setContent {
             val darkMode by userPrefs.darkMode.collectAsState(initial = isSystemInDarkTheme())
+            val intervalMins by userPrefs.backgroundIntervalMins.collectAsState(initial = 15)
+
+            LaunchedEffect(intervalMins) {
+                ExchangeMonitorWorker.schedule(this@MainActivity, intervalMins.toLong())
+            }
 
             FubonFXMonitorTheme(darkTheme = darkMode) {
                 AppNavigation(startTargetCurrency = targetCurrency)
@@ -101,7 +103,9 @@ fun AppNavigation(startTargetCurrency: String?) {
         ) { backStackEntry ->
             val currencyCode = backStackEntry.arguments?.getString("currency")
             val viewModel: AlertViewModel = hiltViewModel()
-            viewModel.openAddDialog(currencyCode)
+            LaunchedEffect(currencyCode) {
+                viewModel.openAddDialog(currencyCode)
+            }
             AlertScreen(
                 viewModel = viewModel,
                 onBackClick = { navController.popBackStack() }

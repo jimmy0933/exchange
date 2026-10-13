@@ -5,19 +5,20 @@ import androidx.lifecycle.viewModelScope
 import com.fubon.fxmonitor.data.local.RateDao
 import com.fubon.fxmonitor.data.local.UserPreferencesRepository
 import com.fubon.fxmonitor.data.repository.ExchangeRateRepository
-import com.fubon.fxmonitor.domain.model.CurrencyCode
-import com.fubon.fxmonitor.domain.model.ExchangeRate
-import com.fubon.fxmonitor.domain.model.RateType
+import com.fubon.fxmonitor.domain.model.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.math.BigDecimal
 import javax.inject.Inject
 
 data class CurrencyCardUiState(
     val rate: ExchangeRate,
     val isFavorite: Boolean,
     val displayOrder: Int,
+    val spotChangeAmount: BigDecimal? = null,
     val spotChangePct: Double? = null,
+    val cashChangeAmount: BigDecimal? = null,
     val cashChangePct: Double? = null
 )
 
@@ -53,7 +54,6 @@ class HomeViewModel @Inject constructor(
                 _uiState.map { it.rateType }.distinctUntilChanged()
             ) { entities, lastSuccess, rateType ->
                 val now = System.currentTimeMillis()
-                // Stale if last success is more than 30 mins ago
                 val isStale = lastSuccess > 0 && (now - lastSuccess > 30 * 60 * 1000)
 
                 val cardStates = entities.map { entity ->
@@ -69,10 +69,17 @@ class HomeViewModel @Inject constructor(
                         source = entity.source
                     )
 
+                    val spotChange = repository.calculateRateChange(code.name, RateType.SPOT, BankSide.SELL)
+                    val cashChange = repository.calculateRateChange(code.name, RateType.CASH, BankSide.SELL)
+
                     CurrencyCardUiState(
                         rate = domainRate,
                         isFavorite = entity.isFavorite,
-                        displayOrder = entity.displayOrder
+                        displayOrder = entity.displayOrder,
+                        spotChangeAmount = spotChange.amount,
+                        spotChangePct = spotChange.percentage,
+                        cashChangeAmount = cashChange.amount,
+                        cashChangePct = cashChange.percentage
                     )
                 }
 

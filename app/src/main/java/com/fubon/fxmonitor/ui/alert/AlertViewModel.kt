@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fubon.fxmonitor.data.local.AlertDao
 import com.fubon.fxmonitor.data.local.AlertHistoryEntity
 import com.fubon.fxmonitor.data.local.ExchangeAlertEntity
+import com.fubon.fxmonitor.data.local.RateDao
 import com.fubon.fxmonitor.domain.model.BankSide
 import com.fubon.fxmonitor.domain.model.CurrencyCode
 import com.fubon.fxmonitor.domain.model.RateType
@@ -22,12 +23,15 @@ data class AlertUiState(
     val selectedRateType: RateType = RateType.SPOT,
     val selectedBankSide: BankSide = BankSide.SELL,
     val selectedCondition: TriggerCondition = TriggerCondition.LESS_EQUAL,
-    val targetValueInput: String = ""
+    val targetValueInput: String = "",
+    val errorMessage: String? = null,
+    val isQuoteAvailable: Boolean = true
 )
 
 @HiltViewModel
 class AlertViewModel @Inject constructor(
-    private val alertDao: AlertDao
+    private val alertDao: AlertDao,
+    private val rateDao: RateDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AlertUiState())
@@ -54,38 +58,73 @@ class AlertViewModel @Inject constructor(
             it.copy(
                 showAddDialog = true,
                 selectedCurrency = currency,
-                targetValueInput = ""
+                targetValueInput = "",
+                errorMessage = null
             )
         }
+        checkQuoteAvailability()
     }
 
     fun closeAddDialog() {
-        _uiState.update { it.copy(showAddDialog = false) }
+        _uiState.update { it.copy(showAddDialog = false, errorMessage = null) }
     }
 
     fun updateSelectedCurrency(code: CurrencyCode) {
-        _uiState.update { it.copy(selectedCurrency = code) }
+        _uiState.update { it.copy(selectedCurrency = code, errorMessage = null) }
+        checkQuoteAvailability()
     }
 
     fun updateSelectedRateType(type: RateType) {
-        _uiState.update { it.copy(selectedRateType = type) }
+        _uiState.update { it.copy(selectedRateType = type, errorMessage = null) }
+        checkQuoteAvailability()
     }
 
     fun updateSelectedBankSide(side: BankSide) {
-        _uiState.update { it.copy(selectedBankSide = side) }
+        _uiState.update { it.copy(selectedBankSide = side, errorMessage = null) }
+        checkQuoteAvailability()
     }
 
     fun updateSelectedCondition(condition: TriggerCondition) {
-        _uiState.update { it.copy(selectedCondition = condition) }
+        _uiState.update { it.copy(selectedCondition = condition, errorMessage = null) }
     }
 
     fun updateTargetValue(value: String) {
-        _uiState.update { it.copy(targetValueInput = value) }
+        _uiState.update { it.copy(targetValueInput = value, errorMessage = null) }
+    }
+
+    private fun checkQuoteAvailability() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            val rate = rateDao.getLatestRate(state.selectedCurrency.name)
+            var available = true
+
+            if (rate != null) {
+                val str = when (state.selectedRateType) {
+                    RateType.SPOT -> if (state.selectedBankSide == BankSide.BUY) rate.spotBuy else rate.spotSell
+                    RateType.CASH -> if (state.selectedBankSide == BankSide.BUY) rate.cashBuy else rate.cashSell
+                }
+                if (str == null || str.toDoubleOrNull() == null) {
+                    available = false
+                }
+            }
+
+            _uiState.update { it.copy(isQuoteAvailable = available) }
+        }
     }
 
     fun saveAlert() {
         val state = _uiState.value
-        val valDouble = state.targetValueInput.toDoubleOrNull() ?: return
+
+        if (!state.isQuoteAvailable) {
+            _uiState.update { it.copy(errorMessage = "該幣別目前無此類型的有效報價，無法建立提醒。") }
+            return
+        }
+
+        val valDouble = state.targetValueInput.toDoubleOrNull()
+        if (valDouble == null || valDouble.isNaN() || valDouble.isInfinite() || valDouble <= 0) {
+            _uiState.update { it.copy(errorMessage = "請輸入合法的正數數值") }
+            return
+        }
 
         viewModelScope.launch {
             alertDao.insertAlert(

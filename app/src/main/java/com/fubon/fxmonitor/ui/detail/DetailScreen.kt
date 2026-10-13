@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.fubon.fxmonitor.data.local.RateHistoryEntity
 import com.fubon.fxmonitor.domain.model.RateType
 
@@ -130,15 +129,15 @@ fun DetailScreen(
                 elevation = CardDefaults.cardElevation(2.dp)
             ) {
                 Box(modifier = Modifier.padding(16.dp)) {
-                    if (uiState.history.isEmpty()) {
+                    if (uiState.filteredHistory.size < 2) {
                         Text(
-                            text = "累積歷史資料中...",
+                            text = "所選時間區間內無足夠歷史資料",
                             modifier = Modifier.align(Alignment.Center),
                             color = Color.Gray
                         )
                     } else {
                         RateTrendChart(
-                            history = uiState.history,
+                            history = uiState.filteredHistory,
                             rateType = uiState.selectedRateType,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -190,24 +189,31 @@ fun RateTrendChart(
     val lineColor = MaterialTheme.colorScheme.primary
 
     Canvas(modifier = modifier) {
-        val points = history.reversed().mapNotNull { hist ->
+        val chronological = history.sortedBy { it.timestamp }
+        val validItems = chronological.mapNotNull { hist ->
             val str = if (rateType == RateType.SPOT) hist.spotSell else hist.cashSell
-            str?.toFloatOrNull()
+            val valFloat = str?.toFloatOrNull()
+            if (valFloat != null) hist to valFloat else null
         }
 
-        if (points.size < 2) return@Canvas
+        if (validItems.size < 2) return@Canvas
 
-        val minVal = points.minOrNull() ?: 0f
-        val maxVal = points.maxOrNull() ?: 1f
-        val range = if (maxVal == minVal) 1f else maxVal - minVal
+        val values = validItems.map { it.second }
+        val minVal = values.minOrNull() ?: 0f
+        val maxVal = values.maxOrNull() ?: 1f
+        val rangeVal = if (maxVal == minVal) 1f else maxVal - minVal
+
+        val minTime = validItems.first().first.timestamp
+        val maxTime = validItems.last().first.timestamp
+        val timeSpan = if (maxTime == minTime) 1L else maxTime - minTime
 
         val width = size.width
         val height = size.height
 
         val path = Path()
-        points.forEachIndexed { index, value ->
-            val x = (index.toFloat() / (points.size - 1)) * width
-            val y = height - ((value - minVal) / range) * height
+        validItems.forEachIndexed { index, (entity, value) ->
+            val x = ((entity.timestamp - minTime).toFloat() / timeSpan.toFloat()) * width
+            val y = height - ((value - minVal) / rangeVal) * height
 
             if (index == 0) {
                 path.moveTo(x, y)

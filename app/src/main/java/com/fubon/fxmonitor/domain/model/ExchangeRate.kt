@@ -22,7 +22,11 @@ enum class CurrencyCode(val displayName: String, val flagEmoji: String) {
         val DEFAULT_FAVORITES = listOf(USD, JPY, CNY, EUR)
 
         fun fromString(code: String): CurrencyCode? {
-            return entries.find { it.name.equals(code.trim(), ignoreCase = true) }
+            val trimmed = code.trim()
+            return entries.find {
+                it.name.equals(trimmed, ignoreCase = true) ||
+                it.displayName.equals(trimmed, ignoreCase = true)
+            }
         }
     }
 }

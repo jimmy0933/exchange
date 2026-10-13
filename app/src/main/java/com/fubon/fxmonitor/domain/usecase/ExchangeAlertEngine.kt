@@ -10,11 +10,11 @@ import java.math.RoundingMode
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class TriggerCondition {
-    GREATER_EQUAL,
-    LESS_EQUAL,
-    SINGLE_CHANGE_PCT,
-    DAILY_CHANGE_PCT;
+enum class TriggerCondition(val label: String, val unit: String) {
+    GREATER_EQUAL("≥ 大於等於", "TWD"),
+    LESS_EQUAL("≤ 小於等於", "TWD"),
+    SINGLE_CHANGE_PCT("單次漲跌 %", "%"),
+    DAILY_CHANGE_PCT("每日漲跌 %", "%");
 
     companion object {
         fun fromString(str: String): TriggerCondition = entries.find { it.name == str } ?: GREATER_EQUAL
@@ -47,18 +47,19 @@ class ExchangeAlertEngine @Inject constructor(
 
             val currentRateDouble = currentRateVal.toDouble()
             val condition = TriggerCondition.fromString(alert.triggerCondition)
+            val targetValBD = alert.targetValue.toBigDecimal()
 
             var isConditionMet = false
             var desc = ""
 
             when (condition) {
                 TriggerCondition.GREATER_EQUAL -> {
-                    isConditionMet = currentRateDouble >= alert.targetValue
-                    desc = "匯率 ≥ ${alert.targetValue}"
+                    isConditionMet = currentRateVal >= targetValBD
+                    desc = "匯率 ${currentRateVal.toPlainString()} ≥ ${alert.targetValue} TWD"
                 }
                 TriggerCondition.LESS_EQUAL -> {
-                    isConditionMet = currentRateDouble <= alert.targetValue
-                    desc = "匯率 ≤ ${alert.targetValue}"
+                    isConditionMet = currentRateVal <= targetValBD
+                    desc = "匯率 ${currentRateVal.toPlainString()} ≤ ${alert.targetValue} TWD"
                 }
                 TriggerCondition.SINGLE_CHANGE_PCT -> {
                     val history = rateDao.getLatestTwoHistory(alert.currencyCode)
@@ -68,39 +69,41 @@ class ExchangeAlertEngine @Inject constructor(
                             RateType.CASH -> if (side == BankSide.BUY) history[1].cashBuy else history[1].cashSell
                         }
                         val prevVal = prevValStr?.toBigDecimalOrNull()
-                        if (prevVal != null && prevVal.compareTo(BigDecimal.ZERO) != 0) {
-                            val pct = currentRateVal.subtract(prevVal)
-                                .divide(prevVal, 6, RoundingMode.HALF_UP)
-                                .multiply(BigDecimal("100")).toDouble()
-                            isConditionMet = Math.abs(pct) >= alert.targetValue
-                            desc = "單次漲跌幅達 ${alert.targetValue}%"
+                        if (prevVal != null && prevVal.compareTo(BigDecimal.ZERO) > 0) {
+                            val diff = currentRateVal.subtract(prevVal)
+                            val pctBD = diff.divide(prevVal, 6, RoundingMode.HALF_UP).multiply(BigDecimal("100")).abs()
+                            isConditionMet = pctBD >= targetValBD
+                            desc = "單次變動 ${pctBD.setScale(2, RoundingMode.HALF_UP).toPlainString()}% ≥ ${alert.targetValue}%"
                         }
                     }
                 }
                 TriggerCondition.DAILY_CHANGE_PCT -> {
-                    val history = rateDao.getLatestTwoHistory(alert.currencyCode)
-                    if (history.size >= 2) {
+                    val allHistory = rateDao.getAllHistoryListForCurrency(alert.currencyCode)
+                    val currentDateStr = extractDateString(rate.officialUpdateTime)
+
+                    val prevDayEntry = allHistory.find { hist ->
+                        val histDateStr = extractDateString(hist.officialUpdateTime)
+                        histDateStr.isNotBlank() && histDateStr != currentDateStr
+                    }
+
+                    if (prevDayEntry != null) {
                         val prevValStr = when (type) {
-                            RateType.SPOT -> if (side == BankSide.BUY) history[1].spotBuy else history[1].spotSell
-                            RateType.CASH -> if (side == BankSide.BUY) history[1].cashBuy else history[1].cashSell
+                            RateType.SPOT -> if (side == BankSide.BUY) prevDayEntry.spotBuy else prevDayEntry.spotSell
+                            RateType.CASH -> if (side == BankSide.BUY) prevDayEntry.cashBuy else prevDayEntry.cashSell
                         }
                         val prevVal = prevValStr?.toBigDecimalOrNull()
-                        if (prevVal != null && prevVal.compareTo(BigDecimal.ZERO) != 0) {
-                            val pct = currentRateVal.subtract(prevVal)
-                                .divide(prevVal, 6, RoundingMode.HALF_UP)
-                                .multiply(BigDecimal("100")).toDouble()
-                            isConditionMet = Math.abs(pct) >= alert.targetValue
-                            desc = "每日漲跌幅達 ${alert.targetValue}%"
+                        if (prevVal != null && prevVal.compareTo(BigDecimal.ZERO) > 0) {
+                            val diff = currentRateVal.subtract(prevVal)
+                            val pctBD = diff.divide(prevVal, 6, RoundingMode.HALF_UP).multiply(BigDecimal("100")).abs()
+                            isConditionMet = pctBD >= targetValBD
+                            desc = "每日變動 ${pctBD.setScale(2, RoundingMode.HALF_UP).toPlainString()}% ≥ ${alert.targetValue}%"
                         }
                     }
                 }
             }
 
-            // Re-arming logic:
-            // If previously triggered and armed, condition must first NOT be met before re-firing.
             if (isConditionMet) {
                 if (!alert.isTriggeredAndArmed) {
-                    // Fire alert!
                     results.add(
                         AlertEvaluationResult(
                             alert = alert,
@@ -109,14 +112,12 @@ class ExchangeAlertEngine @Inject constructor(
                             conditionDescription = desc
                         )
                     )
-                    // Update state to armed
                     alertDao.updateAlert(
                         alert.copy(
                             lastTriggeredTime = System.currentTimeMillis(),
                             isTriggeredAndArmed = true
                         )
                     )
-                    // Log alert
                     alertDao.insertAlertHistory(
                         AlertHistoryEntity(
                             alertId = alert.id,
@@ -131,7 +132,6 @@ class ExchangeAlertEngine @Inject constructor(
                     )
                 }
             } else {
-                // Rate left the threshold zone; re-arm for next time
                 if (alert.isTriggeredAndArmed) {
                     alertDao.updateAlert(alert.copy(isTriggeredAndArmed = false))
                 }
@@ -139,5 +139,10 @@ class ExchangeAlertEngine @Inject constructor(
         }
 
         return results
+    }
+
+    private fun extractDateString(officialTimeStr: String): String {
+        val regex = Regex("""\d{4}/\d{2}/\d{2}""")
+        return regex.find(officialTimeStr)?.value ?: ""
     }
 }

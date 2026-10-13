@@ -27,12 +27,13 @@ class ExchangeMonitorWorker @AssistedInject constructor(
         const val WORK_NAME = "fubon_fx_monitor_periodic_work"
 
         fun schedule(context: Context, intervalMinutes: Long = 15) {
+            val safeInterval = intervalMinutes.coerceAtLeast(15)
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
             val workRequest = PeriodicWorkRequestBuilder<ExchangeMonitorWorker>(
-                intervalMinutes, TimeUnit.MINUTES
+                safeInterval, TimeUnit.MINUTES
             )
                 .setConstraints(constraints)
                 .setBackoffCriteria(
@@ -44,7 +45,7 @@ class ExchangeMonitorWorker @AssistedInject constructor(
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.UPDATE,
+                ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
                 workRequest
             )
         }
@@ -64,7 +65,6 @@ class ExchangeMonitorWorker @AssistedInject constructor(
                     }
                 }
 
-                // Update Glance widgets
                 try {
                     WidgetUpdater.updateAllWidgets(context)
                 } catch (e: Exception) {

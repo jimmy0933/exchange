@@ -30,8 +30,11 @@ interface RateDao {
     @Query("SELECT * FROM rate_history WHERE currencyCode = :code ORDER BY timestamp DESC LIMIT 2")
     suspend fun getLatestTwoHistory(code: String): List<RateHistoryEntity>
 
+    @Query("SELECT * FROM rate_history WHERE currencyCode = :code ORDER BY timestamp DESC")
+    suspend fun getAllHistoryListForCurrency(code: String): List<RateHistoryEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertHistory(history: RateHistoryEntity)
+    suspend fun insertHistory(history: RateHistoryEntity): Long
 
     @Query("DELETE FROM rate_history")
     suspend fun clearHistory()
