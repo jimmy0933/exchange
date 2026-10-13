@@ -99,44 +99,33 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
         val html = response.body?.string() ?: throw IllegalStateException("Empty body from backup source")
         val doc = Jsoup.parse(html)
 
-        // Fallback parser implementation for backup official page
-        val rates = mutableListOf<ExchangeRate>()
-        val timeText = doc.select("span, div").find { it.text().contains("時間") || it.text().contains("日期") }?.text() ?: ""
+        val timeText = doc.select("tr, td, span, div").find { it.text().contains("更新時間") || it.text().contains("時間") }?.text() ?: ""
         val officialTime = parseOfficialTime(timeText).ifEmpty { "最新牌價" }
 
+        val rates = mutableListOf<ExchangeRate>()
         val rows = doc.select("table tr")
         for (row in rows) {
-            val text = row.text()
-            for (code in CurrencyCode.entries) {
-                if (text.contains(code.name) || text.contains(code.displayName)) {
-                    val numbers = Regex("""\d+\.\d+""").findAll(text).map { it.value }.toList()
-                    if (numbers.size >= 4) {
-                        rates.add(
-                            ExchangeRate(
-                                currency = code,
-                                spotBuy = numbers[0].toBigDecimalOrNull(),
-                                spotSell = numbers[1].toBigDecimalOrNull(),
-                                cashBuy = numbers[2].toBigDecimalOrNull(),
-                                cashSell = numbers[3].toBigDecimalOrNull(),
-                                officialUpdateTime = officialTime,
-                                source = "台北富邦銀行(無障礙版)"
-                            )
-                        )
-                    } else if (numbers.size >= 2) {
-                        rates.add(
-                            ExchangeRate(
-                                currency = code,
-                                spotBuy = numbers[0].toBigDecimalOrNull(),
-                                spotSell = numbers[1].toBigDecimalOrNull(),
-                                cashBuy = null,
-                                cashSell = null,
-                                officialUpdateTime = officialTime,
-                                source = "台北富邦銀行(無障礙版)"
-                            )
-                        )
-                    }
-                    break
-                }
+            val cols = row.select("td")
+            if (cols.size == 5) {
+                val currencyText = cols[0].text()
+                val code = parseCurrencyCode(currencyText) ?: continue
+
+                val spotBuy = parseSingleRate(cols[1].text())
+                val spotSell = parseSingleRate(cols[2].text())
+                val cashBuy = parseSingleRate(cols[3].text())
+                val cashSell = parseSingleRate(cols[4].text())
+
+                rates.add(
+                    ExchangeRate(
+                        currency = code,
+                        spotBuy = spotBuy,
+                        spotSell = spotSell,
+                        cashBuy = cashBuy,
+                        cashSell = cashSell,
+                        officialUpdateTime = officialTime,
+                        source = "台北富邦銀行(無障礙版)"
+                    )
+                )
             }
         }
 
@@ -149,7 +138,7 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
 
     private fun parseOfficialTime(text: String): String {
         val regex = Regex("""\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2}""")
-        return regex.find(text)?.value ?: text.replace("更新", "").trim()
+        return regex.find(text)?.value ?: text.replace("更新", "").replace("時間：", "").trim()
     }
 
     private fun parseCurrencyCode(text: String): CurrencyCode? {
@@ -160,15 +149,27 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
         return CurrencyCode.entries.find { text.contains(it.name) || text.contains(it.displayName) }
     }
 
+    private fun parseSingleRate(text: String): BigDecimal? {
+        val trimmed = text.trim()
+        if (trimmed.contains("---") || trimmed.isEmpty()) {
+            return null
+        }
+        return trimmed.toBigDecimalOrNull()
+    }
+
     private fun parsePair(text: String): Pair<BigDecimal?, BigDecimal?> {
-        if (text.contains("---") || text.isBlank()) {
+        val trimmed = text.trim()
+        if (trimmed.contains("---") || trimmed.isBlank()) {
             return Pair(null, null)
         }
-        val parts = text.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        val parts = trimmed.split(Regex("""\s+""")).filter { it.isNotBlank() }
         if (parts.size >= 2) {
-            val buy = parts[0].toBigDecimalOrNull()
-            val sell = parts[1].toBigDecimalOrNull()
+            val buy = if (parts[0].contains("---")) null else parts[0].toBigDecimalOrNull()
+            val sell = if (parts[1].contains("---")) null else parts[1].toBigDecimalOrNull()
             return Pair(buy, sell)
+        } else if (parts.size == 1) {
+            val val1 = if (parts[0].contains("---")) null else parts[0].toBigDecimalOrNull()
+            return Pair(val1, null)
         }
         return Pair(null, null)
     }

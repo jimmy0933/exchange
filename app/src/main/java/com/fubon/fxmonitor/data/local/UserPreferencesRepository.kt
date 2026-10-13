@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.flow.Flow
+import com.fubon.fxmonitor.domain.model.CurrencyCode
+import com.fubon.fxmonitor.domain.model.RateType
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,6 +24,9 @@ class UserPreferencesRepository @Inject constructor(
         val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
         val DARK_MODE = booleanPreferencesKey("dark_mode")
         val LAST_SUCCESS_TIME = longPreferencesKey("last_success_time")
+
+        fun widgetRateTypeKey(appWidgetId: String) = stringPreferencesKey("widget_${appWidgetId}_rate_type")
+        fun widgetCurrenciesKey(appWidgetId: String) = stringPreferencesKey("widget_${appWidgetId}_currencies")
     }
 
     val backgroundIntervalMins: Flow<Int> = context.dataStore.data.map {
@@ -62,5 +67,40 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setLastSuccessTime(time: Long) {
         context.dataStore.edit { it[Keys.LAST_SUCCESS_TIME] = time }
+    }
+
+    fun getWidgetConfig(appWidgetId: String): Flow<WidgetConfig> {
+        return context.dataStore.data.map { prefs ->
+            val rateTypeStr = prefs[Keys.widgetRateTypeKey(appWidgetId)]
+            val rateType = if (rateTypeStr == RateType.CASH.name) RateType.CASH else RateType.SPOT
+
+            val currenciesStr = prefs[Keys.widgetCurrenciesKey(appWidgetId)]
+            val currencies = if (!currenciesStr.isNullOrBlank()) {
+                currenciesStr.split(",")
+                    .mapNotNull { CurrencyCode.fromString(it) }
+            } else {
+                CurrencyCode.DEFAULT_FAVORITES
+            }
+
+            WidgetConfig(
+                appWidgetId = appWidgetId,
+                rateType = rateType,
+                selectedCurrencies = if (currencies.isEmpty()) CurrencyCode.DEFAULT_FAVORITES else currencies
+            )
+        }
+    }
+
+    suspend fun saveWidgetConfig(config: WidgetConfig) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.widgetRateTypeKey(config.appWidgetId)] = config.rateType.name
+            prefs[Keys.widgetCurrenciesKey(config.appWidgetId)] = config.selectedCurrencies.joinToString(",") { it.name }
+        }
+    }
+
+    suspend fun removeWidgetConfig(appWidgetId: String) {
+        context.dataStore.edit { prefs ->
+            prefs.remove(Keys.widgetRateTypeKey(appWidgetId))
+            prefs.remove(Keys.widgetCurrenciesKey(appWidgetId))
+        }
     }
 }

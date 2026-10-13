@@ -11,6 +11,9 @@ import com.fubon.fxmonitor.domain.model.RateType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 data class CurrencyCardUiState(
@@ -21,13 +24,20 @@ data class CurrencyCardUiState(
     val cashChangePct: Double? = null
 )
 
+sealed interface RefreshStatus {
+    object Idle : RefreshStatus
+    data class Success(val message: String) : RefreshStatus
+    data class NoChange(val message: String) : RefreshStatus
+    data class Error(val message: String) : RefreshStatus
+}
+
 data class HomeUiState(
     val rates: List<CurrencyCardUiState> = emptyList(),
     val rateType: RateType = RateType.SPOT,
     val isRefreshing: Boolean = false,
     val isStale: Boolean = false,
     val lastUpdateTime: Long = 0L,
-    val errorMessage: String? = null
+    val refreshStatus: RefreshStatus = RefreshStatus.Idle
 )
 
 @HiltViewModel
@@ -88,16 +98,45 @@ class HomeViewModel @Inject constructor(
     }
 
     fun refreshData() {
+        if (_uiState.value.isRefreshing) return
+
         viewModelScope.launch {
-            _uiState.update { it.copy(isRefreshing = true, errorMessage = null) }
+            val previousOfficialTime = _uiState.value.rates.firstOrNull()?.rate?.officialUpdateTime
+            _uiState.update { it.copy(isRefreshing = true, refreshStatus = RefreshStatus.Idle) }
+
             val result = repository.refreshRates()
-            _uiState.update { currentState ->
-                currentState.copy(
-                    isRefreshing = false,
-                    errorMessage = result.exceptionOrNull()?.message
-                )
-            }
+
+            result.fold(
+                onSuccess = { newRates ->
+                    val newOfficialTime = newRates.firstOrNull()?.officialUpdateTime
+                    val status = if (previousOfficialTime != null && previousOfficialTime == newOfficialTime) {
+                        RefreshStatus.NoChange("查詢成功｜目前已是最新牌告")
+                    } else {
+                        val displayTime = extractTimeFromOfficial(newOfficialTime)
+                        RefreshStatus.Success("更新成功｜最新牌告：$displayTime")
+                    }
+
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            isRefreshing = false,
+                            refreshStatus = status
+                        )
+                    }
+                },
+                onFailure = {
+                    _uiState.update { currentState ->
+                        currentState.copy(
+                            isRefreshing = false,
+                            refreshStatus = RefreshStatus.Error("更新失敗｜目前顯示上次成功取得的資料")
+                        )
+                    }
+                }
+            )
         }
+    }
+
+    fun clearRefreshStatus() {
+        _uiState.update { it.copy(refreshStatus = RefreshStatus.Idle) }
     }
 
     fun toggleRateType(type: RateType) {
@@ -108,5 +147,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             repository.toggleFavorite(code, isFav)
         }
+    }
+
+    private fun extractTimeFromOfficial(officialTimeStr: String?): String {
+        if (officialTimeStr.isNullOrBlank()) {
+            return SimpleDateFormat("HH:mm", Locale.TAIWAN).format(Date())
+        }
+        val match = Regex("""\d{2}:\d{2}""").find(officialTimeStr)
+        return match?.value ?: SimpleDateFormat("HH:mm", Locale.TAIWAN).format(Date())
     }
 }

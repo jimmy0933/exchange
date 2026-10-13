@@ -1,8 +1,11 @@
 package com.fubon.fxmonitor.data.repository
 
+import android.content.Context
 import com.fubon.fxmonitor.data.local.*
 import com.fubon.fxmonitor.data.remote.ExchangeRateProvider
 import com.fubon.fxmonitor.domain.model.*
+import com.fubon.fxmonitor.widget.WidgetUpdater
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -13,6 +16,7 @@ import javax.inject.Singleton
 
 @Singleton
 class ExchangeRateRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val rateProvider: ExchangeRateProvider,
     private val rateDao: RateDao,
     private val errorLogDao: ErrorLogDao,
@@ -71,6 +75,11 @@ class ExchangeRateRepository @Inject constructor(
                             )
                         )
                     }
+                }
+
+                // Notify widgets to redraw with fresh data
+                runCatching {
+                    WidgetUpdater.updateAllWidgets(context)
                 }
 
                 Result.success(rates)
