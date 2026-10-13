@@ -82,29 +82,43 @@ fun SmallWidgetContent(
             .fillMaxSize()
             .cornerRadius(16.dp)
             .background(Color(0xFF17212F))
-            .padding(12.dp)
+            .padding(10.dp)
             .clickable(actionStartActivity(intent)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "台北富邦｜${if (isCash) "現鈔" else "即期"}",
-            style = TextStyle(
-                color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
+        val formattedTime = extractTime(officialTime)
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "台北富邦｜${if (isCash) "現鈔" else "即期"}",
+                style = TextStyle(
+                    color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                )
             )
-        )
+            Spacer(modifier = GlanceModifier.defaultWeight())
+            Text(
+                text = if (formattedTime == "未更新") "未更新" else "更新 $formattedTime",
+                style = TextStyle(
+                    color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
+                    fontSize = 9.sp
+                )
+            )
+        }
         Spacer(modifier = GlanceModifier.height(4.dp))
         Text(
             text = "${code.flagEmoji} ${code.name}",
             style = TextStyle(
                 color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
             )
         )
-        Spacer(modifier = GlanceModifier.height(8.dp))
+        Spacer(modifier = GlanceModifier.height(6.dp))
 
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
@@ -146,15 +160,6 @@ fun SmallWidgetContent(
                 )
             }
         }
-
-        Spacer(modifier = GlanceModifier.height(8.dp))
-        Text(
-            text = "更新：${extractTime(officialTime)}",
-            style = TextStyle(
-                color = androidx.glance.unit.ColorProvider(Color(0xFF64748B)),
-                fontSize = 10.sp
-            )
-        )
     }
 }
 

@@ -74,10 +74,18 @@ fun LargeWidgetContent(
             .fillMaxSize()
             .cornerRadius(16.dp)
             .background(Color(0xFF17212F))
-            .padding(14.dp)
+            .padding(12.dp)
             .clickable(actionStartActivity(intent))
     ) {
-        // Header
+        // Find latest official update time across displayed currencies
+        for (code in displayCurrencies) {
+            val entity = allRates[code.name]
+            if (entity?.officialUpdateTime != null) {
+                latestOfficialTime = entity.officialUpdateTime
+            }
+        }
+
+        // Header with title and update time on the same line
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -86,13 +94,22 @@ fun LargeWidgetContent(
                 text = "台北富邦｜${if (isCash) "現鈔匯率" else "即期匯率"}",
                 style = TextStyle(
                     color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
-                    fontSize = 15.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
+                )
+            )
+            Spacer(modifier = GlanceModifier.defaultWeight())
+            val formattedTime = extractTime(latestOfficialTime)
+            Text(
+                text = if (formattedTime == "未更新") "未更新" else "更新 $formattedTime",
+                style = TextStyle(
+                    color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
+                    fontSize = 10.sp
                 )
             )
         }
 
-        Spacer(modifier = GlanceModifier.height(8.dp))
+        Spacer(modifier = GlanceModifier.height(6.dp))
 
         // Column Titles
         Row(
@@ -116,15 +133,11 @@ fun LargeWidgetContent(
             )
         }
 
-        Spacer(modifier = GlanceModifier.height(6.dp))
+        Spacer(modifier = GlanceModifier.height(4.dp))
 
         // Currency Rows
         for (code in displayCurrencies) {
             val entity = allRates[code.name]
-            if (entity?.officialUpdateTime != null) {
-                latestOfficialTime = entity.officialUpdateTime
-            }
-
             val buyVal = if (isCash) entity?.cashBuy else entity?.spotBuy
             val sellVal = if (isCash) entity?.cashSell else entity?.spotSell
 
@@ -132,7 +145,7 @@ fun LargeWidgetContent(
             val sellStr = sellVal ?: "未提供"
 
             Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
+                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -164,16 +177,6 @@ fun LargeWidgetContent(
                 )
             }
         }
-
-        Spacer(modifier = GlanceModifier.defaultWeight())
-
-        Text(
-            text = "最後更新：${extractTime(latestOfficialTime)}",
-            style = TextStyle(
-                color = androidx.glance.unit.ColorProvider(Color(0xFF64748B)),
-                fontSize = 11.sp
-            )
-        )
     }
 }
 
