@@ -20,6 +20,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        getByName("debug") {
+            val keystoreFilePath = System.getenv("KEYSTORE_FILE")
+            if (!keystoreFilePath.isNullOrEmpty()) {
+                val ksFile = file(keystoreFilePath)
+                if (ksFile.exists()) {
+                    storeFile = ksFile
+                    storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                    keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+                    keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
