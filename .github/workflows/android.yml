@@ -62,8 +62,8 @@ jobs:
         # Verify signature with apksigner (Fail if verification fails)
         VERIFY_OUTPUT=$("$APKSIGNER" verify --verbose --print-certs "$APK_PATH")
 
-        export SHA1=$(echo "$VERIFY_OUTPUT" | grep "Signer #1 certificate SHA-1 digest:" | awk '{print $6}')
-        export SHA256=$(echo "$VERIFY_OUTPUT" | grep "Signer #1 certificate SHA-256 digest:" | awk '{print $6}')
+        export SHA1=$(echo "$VERIFY_OUTPUT" | grep -i "certificate SHA-1 digest:" | head -n 1 | awk '{print $NF}')
+        export SHA256=$(echo "$VERIFY_OUTPUT" | grep -i "certificate SHA-256 digest:" | head -n 1 | awk '{print $NF}')
 
         if [ -z "$SHA1" ] || [ -z "$SHA256" ]; then
           echo "Error: Failed to extract SHA-1 or SHA-256 certificate fingerprints from apksigner output!" >&2
