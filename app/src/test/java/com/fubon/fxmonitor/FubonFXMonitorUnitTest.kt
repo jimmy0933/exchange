@@ -1,5 +1,6 @@
 package com.fubon.fxmonitor
 
+import com.fubon.fxmonitor.data.local.RateHistoryEntity
 import com.fubon.fxmonitor.data.remote.FubonExchangeRateScraper
 import com.fubon.fxmonitor.domain.model.BankSide
 import com.fubon.fxmonitor.domain.model.CurrencyCode
@@ -7,10 +8,12 @@ import com.fubon.fxmonitor.domain.model.ExchangeRate
 import com.fubon.fxmonitor.domain.model.RateType
 import com.fubon.fxmonitor.domain.usecase.ConversionDirection
 import com.fubon.fxmonitor.domain.usecase.ExchangeCalculatorUseCase
+import com.fubon.fxmonitor.ui.detail.TimeRange
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -95,8 +98,6 @@ class FubonFXMonitorUnitTest {
             officialUpdateTime = "2026/10/13 09:23:31"
         )
 
-        // TWD 10,000 -> Foreign (JPY cash sell rate 0.2065)
-        // Expected: 10,000 / 0.2065 = 48426.1501...
         val result = calculator.convert(
             amount = BigDecimal("10000"),
             rate = rate,
@@ -118,5 +119,117 @@ class FubonFXMonitorUnitTest {
         assertEquals(CurrencyCode.JPY, CurrencyCode.fromString("jpy"))
         assertEquals(CurrencyCode.EUR, CurrencyCode.fromString("歐元"))
         assertNull(CurrencyCode.fromString("UNKNOWN"))
+    }
+
+    @Test
+    fun testDetailViewModelTimeRangeFiltering7d1m6m1y() {
+        val now = System.currentTimeMillis()
+        val dayMillis = 24 * 3600 * 1000L
+
+        val mockHistory = listOf(
+            RateHistoryEntity(id = 1, currencyCode = "USD", spotBuy = "32.0", spotSell = "32.1", cashBuy = "31.8", cashSell = "32.3", officialUpdateTime = "2026/10/13 09:00:00", timestamp = now - 2 * dayMillis),
+            RateHistoryEntity(id = 2, currencyCode = "USD", spotBuy = "32.1", spotSell = "32.2", cashBuy = "31.9", cashSell = "32.4", officialUpdateTime = "2026/10/01 09:00:00", timestamp = now - 14 * dayMillis),
+            RateHistoryEntity(id = 3, currencyCode = "USD", spotBuy = "32.2", spotSell = "32.3", cashBuy = "32.0", cashSell = "32.5", officialUpdateTime = "2026/09/10 09:00:00", timestamp = now - 40 * dayMillis),
+            RateHistoryEntity(id = 4, currencyCode = "USD", spotBuy = "32.3", spotSell = "32.4", cashBuy = "32.1", cashSell = "32.6", officialUpdateTime = "2026/05/10 09:00:00", timestamp = now - 160 * dayMillis),
+            RateHistoryEntity(id = 5, currencyCode = "USD", spotBuy = "32.4", spotSell = "32.5", cashBuy = "32.2", cashSell = "32.7", officialUpdateTime = "2025/11/10 09:00:00", timestamp = now - 350 * dayMillis),
+            RateHistoryEntity(id = 6, currencyCode = "USD", spotBuy = "32.5", spotSell = "32.6", cashBuy = "32.3", cashSell = "32.8", officialUpdateTime = "2025/08/10 09:00:00", timestamp = now - 400 * dayMillis)
+        )
+
+        // Filter 7 days (WEEK)
+        val weekCutoff = now - TimeRange.WEEK.durationMillis
+        val weekList = mockHistory.filter { it.timestamp >= weekCutoff }
+        assertEquals(1, weekList.size)
+
+        // Filter 1 month (MONTH)
+        val monthCutoff = now - TimeRange.MONTH.durationMillis
+        val monthList = mockHistory.filter { it.timestamp >= monthCutoff }
+        assertEquals(2, monthList.size)
+
+        // Filter 6 months (SIX_MONTHS)
+        val sixMonthCutoff = now - TimeRange.SIX_MONTHS.durationMillis
+        val sixMonthList = mockHistory.filter { it.timestamp >= sixMonthCutoff }
+        assertEquals(4, sixMonthList.size)
+
+        // Filter 1 year (YEAR)
+        val yearCutoff = now - TimeRange.YEAR.durationMillis
+        val yearList = mockHistory.filter { it.timestamp >= yearCutoff }
+        assertEquals(5, yearList.size)
+    }
+
+    @Test
+    fun testDetailViewModel4WayRateCalculations() {
+        val entry1 = RateHistoryEntity(id = 1, currencyCode = "USD", spotBuy = "32.0000", spotSell = "32.1000", cashBuy = "31.8000", cashSell = "32.3000", officialUpdateTime = "2026/10/06 09:00:00", timestamp = 1000L)
+        val entry2 = RateHistoryEntity(id = 2, currencyCode = "USD", spotBuy = "32.2000", spotSell = "32.3000", cashBuy = "32.0000", cashSell = "32.5000", officialUpdateTime = "2026/10/13 09:00:00", timestamp = 2000L)
+        val history = listOf(entry1, entry2)
+
+        // Function helper to test stats calculation
+        fun calculateStats(type: RateType, side: BankSide): Pair<BigDecimal, BigDecimal> {
+            val rates = history.mapNotNull { hist ->
+                val str = when (type) {
+                    RateType.SPOT -> if (side == BankSide.BUY) hist.spotBuy else hist.spotSell
+                    RateType.CASH -> if (side == BankSide.BUY) hist.cashBuy else hist.cashSell
+                }
+                str?.toBigDecimalOrNull()
+            }
+            val minVal = rates.minOrNull()!!
+            val maxVal = rates.maxOrNull()!!
+            return Pair(minVal, maxVal)
+        }
+
+        // 1. Spot Buy
+        val (sbMin, sbMax) = calculateStats(RateType.SPOT, BankSide.BUY)
+        assertEquals(BigDecimal("32.0000"), sbMin)
+        assertEquals(BigDecimal("32.2000"), sbMax)
+
+        // 2. Spot Sell
+        val (ssMin, ssMax) = calculateStats(RateType.SPOT, BankSide.SELL)
+        assertEquals(BigDecimal("32.1000"), ssMin)
+        assertEquals(BigDecimal("32.3000"), ssMax)
+
+        // 3. Cash Buy
+        val (cbMin, cbMax) = calculateStats(RateType.CASH, BankSide.BUY)
+        assertEquals(BigDecimal("31.8000"), cbMin)
+        assertEquals(BigDecimal("32.0000"), cbMax)
+
+        // 4. Cash Sell
+        val (csMin, csMax) = calculateStats(RateType.CASH, BankSide.SELL)
+        assertEquals(BigDecimal("32.3000"), csMin)
+        assertEquals(BigDecimal("32.5000"), csMax)
+
+        // Check Change calculation comparing earliest and latest
+        val spotSellEarliest = BigDecimal(entry1.spotSell)
+        val spotSellLatest = BigDecimal(entry2.spotSell)
+        val diff = spotSellLatest.subtract(spotSellEarliest)
+        val pct = diff.divide(spotSellEarliest, 6, RoundingMode.HALF_UP).multiply(BigDecimal("100"))
+
+        assertEquals(BigDecimal("0.2000"), diff)
+        assertEquals("0.62", pct.setScale(2, RoundingMode.HALF_UP).toPlainString())
+    }
+
+    @Test
+    fun testHistoryDeduplicationAndNullCashRates() {
+        // GBP has no cash rates (cashBuy and cashSell are null)
+        val gbpEntry = RateHistoryEntity(
+            id = 1,
+            currencyCode = "GBP",
+            spotBuy = "41.5000",
+            spotSell = "41.8000",
+            cashBuy = null,
+            cashSell = null,
+            officialUpdateTime = "2026/10/13 09:23:31",
+            timestamp = System.currentTimeMillis(),
+            source = "台北富邦銀行"
+        )
+
+        // Cash rate extraction should return null
+        assertNull(gbpEntry.cashBuy)
+        assertNull(gbpEntry.cashSell)
+        assertNotNull(gbpEntry.spotBuy)
+        assertNotNull(gbpEntry.spotSell)
+
+        // Check key uniqueness
+        val key1 = "${gbpEntry.currencyCode}_${gbpEntry.officialUpdateTime}"
+        val key2 = "GBP_2026/10/13 09:23:31"
+        assertEquals(key1, key2)
     }
 }

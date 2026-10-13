@@ -71,7 +71,8 @@ class ExchangeRateRepository @Inject constructor(
                                 cashSell = rate.cashSell?.toPlainString(),
                                 officialUpdateTime = rate.officialUpdateTime,
                                 timestamp = now,
-                                isOfficialDaily = false
+                                isOfficialDaily = false,
+                                source = rate.source
                             )
                         )
                     }
