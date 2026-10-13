@@ -1,8 +1,8 @@
-# Fubon FX Monitor (台北富邦銀行匯率監控)
+# 我的匯率 (台北富邦銀行匯率監控)
 
 [![Android CI Build](https://github.com/jimmy0933/exchange/actions/workflows/android.yml/badge.svg)](https://github.com/jimmy0933/exchange/actions)
 
-Fubon FX Monitor 是一款專為台北富邦銀行匯率監控設計的原生 Android App。不需要登入銀行帳號即可自動查詢最新公開牌告匯率、多外幣即期與現鈔監控、自訂目標匯率到價通知、歷史趨勢圖表、桌面 Widget 與換匯試算。
+「我的匯率」是一款專為台北富邦銀行匯率監控設計的原生 Android App。不需要登入銀行帳號即可自動查詢最新公開牌告匯率、多外幣即期與現鈔監控、自訂目標匯率到價通知、歷史趨勢圖表、桌面 Widget 與換匯試算。
 
 ---
 

@@ -49,7 +49,7 @@ class FubonNotificationManager @Inject constructor(
         val rateTypeLabel = if (RateType.valueOf(result.alert.rateType) == RateType.SPOT) "即期" else "現鈔"
         val bankSideLabel = if (result.alert.bankSide == "BUY") "銀行買入" else "銀行賣出"
 
-        val title = "【富邦匯率到價通知】"
+        val title = "【我的匯率到價通知】"
         val text = "${currencyCode.displayName} ${currencyCode.name}\n" +
                 "$rateTypeLabel$bankSideLabel：${result.currentRateValue}\n" +
                 "條件：${result.conditionDescription}\n" +
