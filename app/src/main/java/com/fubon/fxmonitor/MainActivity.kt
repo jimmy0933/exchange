@@ -24,6 +24,8 @@ import com.fubon.fxmonitor.ui.home.HomeScreen
 import com.fubon.fxmonitor.ui.home.HomeViewModel
 import com.fubon.fxmonitor.ui.settings.SettingsScreen
 import com.fubon.fxmonitor.ui.settings.SettingsViewModel
+import com.fubon.fxmonitor.ui.settings.WidgetSettingsScreen
+import com.fubon.fxmonitor.ui.settings.WidgetSettingsViewModel
 import com.fubon.fxmonitor.ui.theme.FubonFXMonitorTheme
 import com.fubon.fxmonitor.worker.ExchangeMonitorWorker
 import dagger.hilt.android.AndroidEntryPoint
@@ -119,6 +121,15 @@ fun AppNavigation(startTargetCurrency: String?) {
         composable("settings") {
             val viewModel: SettingsViewModel = hiltViewModel()
             SettingsScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() },
+                onNavigateToWidgetSettings = { navController.navigate("widget_settings") }
+            )
+        }
+
+        composable("widget_settings") {
+            val viewModel: WidgetSettingsViewModel = hiltViewModel()
+            WidgetSettingsScreen(
                 viewModel = viewModel,
                 onBackClick = { navController.popBackStack() }
             )
