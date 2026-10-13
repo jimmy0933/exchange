@@ -1,0 +1,103 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ "master", "main", "jules-*" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Run Unit Tests
+      run: ./gradlew testDebugUnitTest --no-daemon
+
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug --no-daemon
+
+    - name: Generate Signature Fingerprints
+      run: |
+        set -e
+        APK_PATH=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -n 1)
+        if [ -z "$APK_PATH" ]; then
+          echo "Error: APK file not found!"
+          exit 1
+        fi
+
+        PACKAGE_NAME="com.fubon.fxmonitor"
+        COMMIT_SHA="${{ github.sha }}"
+        APK_NAME=$(basename "$APK_PATH")
+
+        APKSIGNER="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+        if [ ! -f "$APKSIGNER" ]; then
+          APKSIGNER=$(find $ANDROID_HOME/build-tools/ -name "apksigner" | head -n 1)
+        fi
+
+        echo "Using apksigner at: $APKSIGNER"
+
+        # Verify signature with apksigner (Must fail job if verification fails)
+        VERIFY_OUTPUT=$("$APKSIGNER" verify --verbose --print-certs "$APK_PATH")
+
+        SHA1=$(echo "$VERIFY_OUTPUT" | grep "Signer #1 certificate SHA-1 digest:" | awk '{print $6}')
+        SHA256=$(echo "$VERIFY_OUTPUT" | grep "Signer #1 certificate SHA-256 digest:" | awk '{print $6}')
+
+        if [ -z "$SHA1" ] || [ -z "$SHA256" ]; then
+          echo "Error: Failed to extract SHA-1 or SHA-256 from apksigner!"
+          exit 1
+        fi
+
+        # Compute file checksum
+        sha256sum "$APK_PATH" | awk '{print $1}' > "${APK_PATH}.sha256"
+
+        SIGNATURE_TYPE="臨時 Debug 簽章"
+        if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          SIGNATURE_TYPE="固定密鑰庫簽章"
+        fi
+
+        cat <<EOF > apk_signature_fingerprints.txt
+        === APK 簽章指紋報告 ===
+        APK 檔名: ${APK_NAME}
+        Commit SHA: ${COMMIT_SHA}
+        Application ID / Package: ${PACKAGE_NAME}
+        簽章狀態: ${SIGNATURE_TYPE}
+
+        [Google Cloud OAuth 憑證]
+        SHA-1 指紋: ${SHA1}
+        SHA-256 指紋: ${SHA256}
+
+        註：${APK_NAME}.sha256 為 APK 檔案校驗碼，不可作為 OAuth SHA-1 使用。
+        EOF
+
+        echo "=== 簽章報告內容 ==="
+        cat apk_signature_fingerprints.txt
+
+        # Write to Github Actions Summary
+        cat apk_signature_fingerprints.txt >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/*.apk
+
+    - name: Upload Fingerprint Report Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-signature-fingerprints
+        path: |
+          apk_signature_fingerprints.txt
+          app/build/outputs/apk/debug/*.sha256
