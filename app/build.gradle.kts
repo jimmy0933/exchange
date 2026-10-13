@@ -30,6 +30,8 @@ android {
                     storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
                     keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
                     keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+                } else {
+                    throw GradleException("Specified KEYSTORE_FILE does not exist: ${ksFile.absolutePath}")
                 }
             }
         }
