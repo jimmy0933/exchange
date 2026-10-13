@@ -43,15 +43,16 @@ class SettingsViewModel @Inject constructor(
                 userPrefs.soundEnabled,
                 userPrefs.vibrationEnabled,
                 userPrefs.darkMode,
-                userPrefs.lastSuccessTime,
-                errorLogDao.getErrorLogs()
-            ) { interval, sound, vibration, dark, lastSuccess, logs ->
+                userPrefs.lastSuccessTime
+            ) { interval, sound, vibration, dark, lastSuccess ->
+                Tuple5(interval, sound, vibration, dark, lastSuccess)
+            }.combine(errorLogDao.getErrorLogs()) { tuple, logs ->
                 SettingsUiState(
-                    intervalMins = interval,
-                    soundEnabled = sound,
-                    vibrationEnabled = vibration,
-                    darkMode = dark,
-                    lastSuccessTime = lastSuccess,
+                    intervalMins = tuple.v1,
+                    soundEnabled = tuple.v2,
+                    vibrationEnabled = tuple.v3,
+                    darkMode = tuple.v4,
+                    lastSuccessTime = tuple.v5,
                     errorLogs = logs
                 )
             }.collect { newState ->
@@ -59,6 +60,14 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    private data class Tuple5<A, B, C, D, E>(
+        val v1: A,
+        val v2: B,
+        val v3: C,
+        val v4: D,
+        val v5: E
+    )
 
     fun setInterval(mins: Int) {
         viewModelScope.launch {
