@@ -20,7 +20,8 @@ data class WidgetSettingsUiState(
     val activeWidgetIds: List<String> = emptyList(),
     val selectedWidgetId: String = "default_widget",
     val rateType: RateType = RateType.SPOT,
-    val selectedCurrencies: List<CurrencyCode> = listOf(CurrencyCode.USD),
+    val selectedCurrencies: List<CurrencyCode> = listOf(CurrencyCode.USD, CurrencyCode.JPY),
+    val bgTransparency: Int = 0,
     val availableRates: List<ExchangeRate> = emptyList(),
     val isSaved: Boolean = false
 )
@@ -62,11 +63,12 @@ class WidgetSettingsViewModel @Inject constructor(
     private fun loadConfigForWidget(widgetId: String) {
         viewModelScope.launch {
             userPrefs.getWidgetConfig(widgetId).first().let { config ->
-                val currencies = config.selectedCurrencies.take(2).ifEmpty { listOf(CurrencyCode.USD) }
+                val currencies = config.selectedCurrencies.take(8).ifEmpty { listOf(CurrencyCode.USD, CurrencyCode.JPY) }
                 _uiState.update {
                     it.copy(
                         rateType = config.rateType,
-                        selectedCurrencies = currencies
+                        selectedCurrencies = currencies,
+                        bgTransparency = config.bgTransparency
                     )
                 }
             }
@@ -85,13 +87,17 @@ class WidgetSettingsViewModel @Inject constructor(
         _uiState.update { it.copy(rateType = type, isSaved = false) }
     }
 
+    fun setBgTransparency(transparency: Int) {
+        _uiState.update { it.copy(bgTransparency = transparency.coerceIn(0, 100), isSaved = false) }
+    }
+
     fun toggleCurrency(code: CurrencyCode) {
         _uiState.update { state ->
             val current = state.selectedCurrencies.toMutableList()
             if (current.contains(code)) {
                 if (current.size > 1) current.remove(code)
             } else {
-                if (current.size < 2) current.add(code)
+                if (current.size < 8) current.add(code)
             }
             state.copy(selectedCurrencies = current, isSaved = false)
         }
@@ -125,7 +131,8 @@ class WidgetSettingsViewModel @Inject constructor(
             val config = WidgetConfig(
                 appWidgetId = state.selectedWidgetId,
                 rateType = state.rateType,
-                selectedCurrencies = state.selectedCurrencies.take(2)
+                selectedCurrencies = state.selectedCurrencies.take(8),
+                bgTransparency = state.bgTransparency
             )
             userPrefs.saveWidgetConfig(config)
             WidgetUpdater.updateAllWidgets(context)

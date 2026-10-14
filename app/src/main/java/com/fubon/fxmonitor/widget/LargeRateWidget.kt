@@ -3,7 +3,6 @@ package com.fubon.fxmonitor.widget
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -66,112 +65,73 @@ fun LargeWidgetContent(
 
     val isCash = config.rateType == RateType.CASH
     val displayCurrencies = config.selectedCurrencies.take(8)
+    val bgColorProvider = getBgColorProvider(config.bgTransparency)
 
-    var latestOfficialTime = "未更新"
+    val firstCode = displayCurrencies.firstOrNull()
+    val firstEntity = if (firstCode != null) allRates[firstCode.name] else null
+    val firstOfficialTime = firstEntity?.officialUpdateTime
+    val formattedTime = if (firstOfficialTime != null) extractTime(firstOfficialTime) else "未更新"
 
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .cornerRadius(16.dp)
-            .background(Color(0xFF17212F))
+            .background(bgColorProvider)
             .padding(12.dp)
-            .clickable(actionStartActivity(intent))
+            .clickable(actionStartActivity(intent)),
+        verticalAlignment = Alignment.Top
     ) {
-        // Find latest official update time across displayed currencies
-        for (code in displayCurrencies) {
-            val entity = allRates[code.name]
-            if (entity?.officialUpdateTime != null) {
-                latestOfficialTime = entity.officialUpdateTime
-            }
-        }
-
-        // Header with title and update time on the same line
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "台北富邦｜${if (isCash) "現鈔匯率" else "即期匯率"}",
-                style = TextStyle(
-                    color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            )
-            Spacer(modifier = GlanceModifier.defaultWeight())
-            val formattedTime = extractTime(latestOfficialTime)
-            Text(
-                text = if (formattedTime == "未更新") "未更新" else "更新 $formattedTime",
-                style = TextStyle(
-                    color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
-                    fontSize = 10.sp
-                )
-            )
-        }
-
-        Spacer(modifier = GlanceModifier.height(6.dp))
-
-        // Column Titles
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "幣別",
-                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 12.sp, fontWeight = FontWeight.Medium),
-                modifier = GlanceModifier.defaultWeight()
-            )
-            Text(
-                text = "銀行買入",
-                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 12.sp, fontWeight = FontWeight.Medium),
-                modifier = GlanceModifier.defaultWeight()
-            )
-            Text(
-                text = "銀行賣出",
-                style = TextStyle(color = androidx.glance.unit.ColorProvider(Color(0xFFCBD5E1)), fontSize = 12.sp, fontWeight = FontWeight.Medium),
-                modifier = GlanceModifier.defaultWeight()
-            )
-        }
-
-        Spacer(modifier = GlanceModifier.height(4.dp))
-
-        // Currency Rows
-        for (code in displayCurrencies) {
+        displayCurrencies.forEachIndexed { index, code ->
             val entity = allRates[code.name]
             val buyVal = if (isCash) entity?.cashBuy else entity?.spotBuy
             val sellVal = if (isCash) entity?.cashSell else entity?.spotSell
 
-            val buyStr = buyVal ?: "未提供"
-            val sellStr = sellVal ?: "未提供"
+            val buyStr = formatWidgetRate(buyVal)
+            val sellStr = formatWidgetRate(sellVal)
 
             Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 2.dp),
+                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Column 1: Flag & Currency Code
                 Text(
                     text = "${code.flagEmoji} ${code.name}",
                     style = TextStyle(
-                        color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
+                        color = CurrencyTextColorProvider,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     ),
                     modifier = GlanceModifier.defaultWeight()
                 )
+
+                // Column 2: Buy Rate
                 Text(
                     text = buyStr,
                     style = TextStyle(
-                        color = androidx.glance.unit.ColorProvider(Color(0xFFF8FAFC)),
+                        color = BuyRateColorProvider,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = GlanceModifier.defaultWeight()
                 )
+
+                // Column 3: Sell Rate
                 Text(
                     text = sellStr,
                     style = TextStyle(
-                        color = androidx.glance.unit.ColorProvider(Color(0xFF38BDF8)),
+                        color = SellRateColorProvider,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
+                    ),
+                    modifier = GlanceModifier.defaultWeight()
+                )
+
+                // Column 4: Update Time (only on first row)
+                Text(
+                    text = if (index == 0) formattedTime else "",
+                    style = TextStyle(
+                        color = TimeTextColorProvider,
+                        fontSize = 10.sp
                     ),
                     modifier = GlanceModifier.defaultWeight()
                 )

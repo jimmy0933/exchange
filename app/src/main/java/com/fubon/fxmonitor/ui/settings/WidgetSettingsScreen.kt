@@ -126,9 +126,45 @@ fun WidgetSettingsScreen(
                 }
             }
 
+            // Background Transparency Section
+            item {
+                Text("背景透明度設定", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(4.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("背景透明度:", fontWeight = FontWeight.Medium)
+                            Text("${uiState.bgTransparency}%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = uiState.bgTransparency.toFloat(),
+                            onValueChange = { viewModel.setBgTransparency(it.toInt()) },
+                            valueRange = 0f..100f,
+                            steps = 100
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("0% (不透明)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("50% (半透明)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("100% (完全透明)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
             // Selected Currencies & Reordering
             item {
-                Text("已選擇顯示幣別及排序 (最多 2 個幣別)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("已選擇顯示幣別及排序 (最多 8 個幣別)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
 
             itemsIndexed(uiState.selectedCurrencies) { index, code ->
@@ -173,7 +209,7 @@ fun WidgetSettingsScreen(
 
             // Available Currencies Selection
             item {
-                Text("新增 / 移除 幣別 (最多選擇 2 個)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("新增 / 移除 幣別", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(4.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -186,7 +222,7 @@ fun WidgetSettingsScreen(
                         ) {
                             CurrencyCode.entries.forEach { code ->
                                 val isSelected = uiState.selectedCurrencies.contains(code)
-                                val canSelect = isSelected || uiState.selectedCurrencies.size < 2
+                                val canSelect = isSelected || uiState.selectedCurrencies.size < 8
                                 FilterChip(
                                     selected = isSelected,
                                     onClick = { if (canSelect) viewModel.toggleCurrency(code) },
@@ -201,11 +237,12 @@ fun WidgetSettingsScreen(
 
             // Live Board Preview
             item {
-                Text("1x1 Widget 預覽效果", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("Widget 預覽效果", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(4.dp))
                 WidgetPreviewCard(
                     rateType = uiState.rateType,
                     selectedCurrencies = uiState.selectedCurrencies,
+                    bgTransparency = uiState.bgTransparency,
                     rates = uiState.availableRates
                 )
             }
@@ -231,82 +268,102 @@ fun WidgetSettingsScreen(
 fun WidgetPreviewCard(
     rateType: RateType,
     selectedCurrencies: List<CurrencyCode>,
+    bgTransparency: Int,
     rates: List<ExchangeRate>
 ) {
-    val currencies = selectedCurrencies.take(2).ifEmpty { listOf(CurrencyCode.USD) }
-    val isSingle = currencies.size == 1
+    val displayCurrencies = selectedCurrencies.take(4).ifEmpty { listOf(CurrencyCode.USD) }
+    val isSingle = displayCurrencies.size == 1
 
-    Card(
+    val alphaFloat = (100 - bgTransparency) / 100f
+    val baseBgColor = Color(0xFF17212F)
+    val cardBgColor = baseBgColor.copy(alpha = alphaFloat)
+
+    // Wallpaper simulation background box to show transparency effect
+    Box(
         modifier = Modifier
-            .width(180.dp)
-            .wrapContentHeight(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF17212F))
+            .fillMaxWidth()
+            .background(Color(0xFF334155), shape = RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = "1x1 Widget 預覽｜${if (rateType == RateType.SPOT) "即期" else "現鈔"}",
-                color = Color(0xFFCBD5E1),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-
-            if (isSingle) {
-                val code = currencies.first()
-                val rate = rates.find { it.currency == code }
-                val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
-                val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
-                val buyStr = buyVal?.toPlainString() ?: "未提供"
-                val sellStr = sellVal?.toPlainString() ?: "未提供"
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(code.name, color = Color(0xFFF8FAFC), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("22:34", color = Color(0xFF94A3B8), fontSize = 10.sp)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row {
-                    Text("買 ", color = Color(0xFFCBD5E1), fontSize = 11.sp)
-                    Text(buyStr, color = Color(0xFFF8FAFC), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-                Row {
-                    Text("賣 ", color = Color(0xFFCBD5E1), fontSize = 11.sp)
-                    Text(sellStr, color = Color(0xFF38BDF8), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            } else {
-                currencies.forEachIndexed { index, code ->
+        Card(
+            modifier = Modifier
+                .width(280.dp)
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBgColor)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                if (isSingle) {
+                    val code = displayCurrencies.first()
                     val rate = rates.find { it.currency == code }
                     val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
                     val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
-                    val buyStr = buyVal?.toPlainString() ?: "未提供"
-                    val sellStr = sellVal?.toPlainString() ?: "未提供"
+                    val buyStr = buyVal?.toPlainString() ?: "32.0160"
+                    val sellStr = sellVal?.toPlainString() ?: "32.1760"
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(code.name, color = Color(0xFFF8FAFC), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Row {
-                            Text(buyStr, color = Color(0xFFF8FAFC), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                            Text(" / ", color = Color(0xFF64748B), fontSize = 11.sp)
-                            Text(sellStr, color = Color(0xFF38BDF8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(code.name, color = Color(0xFFF8FAFC), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("22:06", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row {
+                        Text("買 ", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        Text(buyStr, color = Color(0xFFE2E8F0), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row {
+                        Text("賣 ", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        Text(sellStr, color = Color(0xFF38BDF8), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    displayCurrencies.forEachIndexed { index, code ->
+                        val rate = rates.find { it.currency == code }
+                        val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
+                        val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
+                        val buyStr = buyVal?.toPlainString() ?: "32.0160"
+                        val sellStr = sellVal?.toPlainString() ?: "32.1760"
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${code.flagEmoji} ${code.name}",
+                                color = Color(0xFFF8FAFC),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(2.2f)
+                            )
+                            Text(
+                                text = buyStr,
+                                color = Color(0xFFE2E8F0),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(2.2f)
+                            )
+                            Text(
+                                text = sellStr,
+                                color = Color(0xFF38BDF8),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(2.2f)
+                            )
+                            Text(
+                                text = if (index == 0) "22:06" else "",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp,
+                                modifier = Modifier.weight(1.8f)
+                            )
+                        }
+                        if (index < displayCurrencies.size - 1) {
+                            Spacer(modifier = Modifier.height(6.dp))
                         }
                     }
-                    if (index < currencies.size - 1) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text("22:34", color = Color(0xFF94A3B8), fontSize = 9.sp)
                 }
             }
         }
