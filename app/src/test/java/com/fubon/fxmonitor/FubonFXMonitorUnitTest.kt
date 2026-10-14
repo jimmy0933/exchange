@@ -209,6 +209,18 @@ class FubonFXMonitorUnitTest {
     }
 
     @Test
+    fun testWidgetConfigBgTransparencyDefaultsAndRange() {
+        val defaultConfig = com.fubon.fxmonitor.data.local.WidgetConfig(appWidgetId = "widget_1")
+        assertEquals(0, defaultConfig.bgTransparency)
+
+        val customConfig = com.fubon.fxmonitor.data.local.WidgetConfig(
+            appWidgetId = "widget_2",
+            bgTransparency = 50
+        )
+        assertEquals(50, customConfig.bgTransparency)
+    }
+
+    @Test
     fun testExtractTimeFromOfficialUpdateTime() {
         assertEquals("22:34", extractTime("2026/10/13 22:34:00"))
         assertEquals("22:34", extractTime("22:34"))

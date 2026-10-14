@@ -11,5 +11,6 @@ data class WidgetConfig(
         CurrencyCode.JPY,
         CurrencyCode.CNY,
         CurrencyCode.EUR
-    )
+    ),
+    val bgTransparency: Int = 0
 )

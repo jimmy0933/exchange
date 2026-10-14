@@ -27,6 +27,7 @@ class UserPreferencesRepository @Inject constructor(
 
         fun widgetRateTypeKey(appWidgetId: String) = stringPreferencesKey("widget_${appWidgetId}_rate_type")
         fun widgetCurrenciesKey(appWidgetId: String) = stringPreferencesKey("widget_${appWidgetId}_currencies")
+        fun widgetBgTransparencyKey(appWidgetId: String) = intPreferencesKey("widget_${appWidgetId}_bg_transparency")
     }
 
     val backgroundIntervalMins: Flow<Int> = context.dataStore.data.map {
@@ -82,10 +83,13 @@ class UserPreferencesRepository @Inject constructor(
                 CurrencyCode.DEFAULT_FAVORITES
             }
 
+            val bgTransparency = prefs[Keys.widgetBgTransparencyKey(appWidgetId)] ?: 0
+
             WidgetConfig(
                 appWidgetId = appWidgetId,
                 rateType = rateType,
-                selectedCurrencies = if (currencies.isEmpty()) CurrencyCode.DEFAULT_FAVORITES else currencies
+                selectedCurrencies = if (currencies.isEmpty()) CurrencyCode.DEFAULT_FAVORITES else currencies,
+                bgTransparency = bgTransparency.coerceIn(0, 100)
             )
         }
     }
@@ -94,6 +98,7 @@ class UserPreferencesRepository @Inject constructor(
         context.dataStore.edit { prefs ->
             prefs[Keys.widgetRateTypeKey(config.appWidgetId)] = config.rateType.name
             prefs[Keys.widgetCurrenciesKey(config.appWidgetId)] = config.selectedCurrencies.joinToString(",") { it.name }
+            prefs[Keys.widgetBgTransparencyKey(config.appWidgetId)] = config.bgTransparency.coerceIn(0, 100)
         }
     }
 
@@ -101,6 +106,7 @@ class UserPreferencesRepository @Inject constructor(
         context.dataStore.edit { prefs ->
             prefs.remove(Keys.widgetRateTypeKey(appWidgetId))
             prefs.remove(Keys.widgetCurrenciesKey(appWidgetId))
+            prefs.remove(Keys.widgetBgTransparencyKey(appWidgetId))
         }
     }
 }
