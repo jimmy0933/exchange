@@ -10,6 +10,7 @@ import com.fubon.fxmonitor.domain.usecase.ConversionDirection
 import com.fubon.fxmonitor.domain.usecase.ExchangeCalculatorUseCase
 import com.fubon.fxmonitor.ui.detail.TimeRange
 import com.fubon.fxmonitor.widget.extractTime
+import com.fubon.fxmonitor.widget.formatWidgetRate
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -213,6 +214,18 @@ class FubonFXMonitorUnitTest {
         assertEquals("22:34", extractTime("22:34"))
         assertEquals("09:15", extractTime("10/13 09:15:30"))
         assertEquals("未更新", extractTime("未更新"))
+    }
+
+    @Test
+    fun testFormatWidgetRate() {
+        assertEquals("31.8205", formatWidgetRate("31.8205"))
+        assertEquals("0.1979", formatWidgetRate("0.1979"))
+        assertEquals("未提供", formatWidgetRate(null))
+        assertEquals("未提供", formatWidgetRate(""))
+
+        // Test compact mode formatting
+        assertEquals("31.8205", formatWidgetRate("31.8205", isCompact = false))
+        assertEquals("152.35", formatWidgetRate("152.3456", isCompact = true))
     }
 
     @Test
