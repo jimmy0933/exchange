@@ -91,165 +91,107 @@ fun SmallWidgetContent(
     allRates: Map<String, LatestRateEntity>
 ) {
     val context = LocalContext.current
-    val currencies = config.selectedCurrencies.take(2).ifEmpty { listOf(CurrencyCode.USD) }
-    val isSingle = currencies.size == 1
+    val code = config.selectedCurrencies.firstOrNull() ?: CurrencyCode.USD
 
     val intent = Intent(context, MainActivity::class.java).apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        if (isSingle) {
-            putExtra("target_currency", currencies.first().name)
-        }
+        putExtra("target_currency", code.name)
     }
 
     val isCash = config.rateType == RateType.CASH
     val bgColorProvider = getBgColorProvider(config.bgTransparency)
+
+    val rateEntity = allRates[code.name]
+    val buyVal = if (isCash) rateEntity?.cashBuy else rateEntity?.spotBuy
+    val sellVal = if (isCash) rateEntity?.cashSell else rateEntity?.spotSell
+
+    val buyStr = formatWidgetRate(buyVal)
+    val sellStr = formatWidgetRate(sellVal)
+
+    val officialTime = rateEntity?.officialUpdateTime ?: "未更新"
+    val formattedTime = extractTime(officialTime)
 
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .cornerRadius(16.dp)
             .background(bgColorProvider)
-            .padding(10.dp)
+            .padding(8.dp)
             .clickable(actionStartActivity(intent)),
         verticalAlignment = Alignment.Top,
         horizontalAlignment = Alignment.Start
     ) {
-        if (isSingle) {
-            val code = currencies.first()
-            val rateEntity = allRates[code.name]
-            val buyVal = if (isCash) rateEntity?.cashBuy else rateEntity?.spotBuy
-            val sellVal = if (isCash) rateEntity?.cashSell else rateEntity?.spotSell
-
-            val buyStr = formatWidgetRate(buyVal)
-            val sellStr = formatWidgetRate(sellVal)
-
-            val officialTime = rateEntity?.officialUpdateTime ?: "未更新"
-            val formattedTime = extractTime(officialTime)
-
-            // Line 1: Code + Time
-            Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = code.name,
-                    style = TextStyle(
-                        color = CurrencyTextColorProvider,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+        // Line 1: Code + Flag on left, Time on right
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${code.flagEmoji} ${code.name}",
+                style = TextStyle(
+                    color = CurrencyTextColorProvider,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = GlanceModifier.defaultWeight())
-                Text(
-                    text = formattedTime,
-                    style = TextStyle(
-                        color = TimeTextColorProvider,
-                        fontSize = 10.sp
-                    )
+            )
+            Spacer(modifier = GlanceModifier.defaultWeight())
+            Text(
+                text = formattedTime,
+                style = TextStyle(
+                    color = TimeTextColorProvider,
+                    fontSize = 10.sp
                 )
-            }
+            )
+        }
 
-            Spacer(modifier = GlanceModifier.height(6.dp))
+        Spacer(modifier = GlanceModifier.height(4.dp))
 
-            // Line 2: Buy Rate
-            Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "買 ",
-                    style = TextStyle(
-                        color = TimeTextColorProvider,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+        // Line 2: Buy Rate
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "買 ",
+                style = TextStyle(
+                    color = TimeTextColorProvider,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
                 )
-                Text(
-                    text = buyStr,
-                    style = TextStyle(
-                        color = BuyRateColorProvider,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            )
+            Text(
+                text = buyStr,
+                style = TextStyle(
+                    color = BuyRateColorProvider,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            }
+            )
+        }
 
-            Spacer(modifier = GlanceModifier.height(2.dp))
+        Spacer(modifier = GlanceModifier.height(2.dp))
 
-            // Line 3: Sell Rate
-            Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "賣 ",
-                    style = TextStyle(
-                        color = TimeTextColorProvider,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+        // Line 3: Sell Rate
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "賣 ",
+                style = TextStyle(
+                    color = TimeTextColorProvider,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
                 )
-                Text(
-                    text = sellStr,
-                    style = TextStyle(
-                        color = SellRateColorProvider,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            )
+            Text(
+                text = sellStr,
+                style = TextStyle(
+                    color = SellRateColorProvider,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            }
-        } else {
-            // Dual Currency Mode
-            val firstCode = currencies[0]
-            val firstEntity = allRates[firstCode.name]
-            val firstOfficialTime = firstEntity?.officialUpdateTime ?: "未更新"
-            val formattedTime = extractTime(firstOfficialTime)
-
-            currencies.forEachIndexed { index, code ->
-                val rateEntity = allRates[code.name]
-                val buyVal = if (isCash) rateEntity?.cashBuy else rateEntity?.spotBuy
-                val sellVal = if (isCash) rateEntity?.cashSell else rateEntity?.spotSell
-
-                val buyStr = formatWidgetRate(buyVal)
-                val sellStr = formatWidgetRate(sellVal)
-
-                Row(
-                    modifier = GlanceModifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = code.name,
-                        style = TextStyle(
-                            color = CurrencyTextColorProvider,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                    Spacer(modifier = GlanceModifier.defaultWeight())
-                    Text(
-                        text = "$buyStr / $sellStr",
-                        style = TextStyle(
-                            color = SellRateColorProvider,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
-                    if (index == 0) {
-                        Spacer(modifier = GlanceModifier.defaultWeight())
-                        Text(
-                            text = formattedTime,
-                            style = TextStyle(
-                                color = TimeTextColorProvider,
-                                fontSize = 9.sp
-                            )
-                        )
-                    }
-                }
-
-                if (index < currencies.size - 1) {
-                    Spacer(modifier = GlanceModifier.height(6.dp))
-                }
-            }
+            )
         }
     }
 }

@@ -64,7 +64,7 @@ fun MediumWidgetContent(
     }
 
     val isCash = config.rateType == RateType.CASH
-    val displayCurrencies = config.selectedCurrencies.take(4)
+    val displayCurrencies = config.selectedCurrencies.take(2).ifEmpty { listOf(com.fubon.fxmonitor.domain.model.CurrencyCode.USD, com.fubon.fxmonitor.domain.model.CurrencyCode.JPY) }
     val bgColorProvider = getBgColorProvider(config.bgTransparency)
 
     val firstCode = displayCurrencies.firstOrNull()
@@ -77,9 +77,9 @@ fun MediumWidgetContent(
             .fillMaxSize()
             .cornerRadius(16.dp)
             .background(bgColorProvider)
-            .padding(10.dp)
+            .padding(8.dp)
             .clickable(actionStartActivity(intent)),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.CenterVertically
     ) {
         displayCurrencies.forEachIndexed { index, code ->
             val entity = allRates[code.name]
