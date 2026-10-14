@@ -90,6 +90,31 @@ fun WidgetSettingsScreen(
                 }
             }
 
+            // Widget Size Guidance Notice
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "💡 Widget 尺寸規格說明",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "• 1x1 迷你看板：顯示單一主幣別完整買賣匯率（建議首選 USD 或 JPY）。\n" +
+                                   "• 3x1 中型看板：橫向 3 格，可同時清晰對比 2 個幣別（如 USD / JPY）。\n" +
+                                   "• 大型看板：完整顯示多個自選幣別之即時牌告。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             // Rate Type Toggle
             item {
                 Text("匯率類型設定", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -307,7 +332,7 @@ fun WidgetPreviewCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(code.name, color = Color(0xFFF8FAFC), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("${code.flagEmoji} ${code.name}", color = Color(0xFFF8FAFC), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Text("22:06", color = Color(0xFF94A3B8), fontSize = 11.sp)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
