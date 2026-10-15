@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fubon.fxmonitor.data.local.WidgetDisplayMode
 import com.fubon.fxmonitor.domain.model.CurrencyCode
 import com.fubon.fxmonitor.domain.model.ExchangeRate
 import com.fubon.fxmonitor.domain.model.RateType
@@ -111,6 +112,73 @@ fun WidgetSettingsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+            }
+
+            // Display Mode Section
+            item {
+                Text("顯示方式設定", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(4.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("選擇幣別顯示方式:", fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
+                                selected = uiState.displayMode == WidgetDisplayMode.FLAG_AND_CODE,
+                                onClick = { viewModel.setDisplayMode(WidgetDisplayMode.FLAG_AND_CODE) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                            ) {
+                                Text("國旗 + 幣別")
+                            }
+                            SegmentedButton(
+                                selected = uiState.displayMode == WidgetDisplayMode.FLAG_ONLY,
+                                onClick = { viewModel.setDisplayMode(WidgetDisplayMode.FLAG_ONLY) },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                            ) {
+                                Text("僅顯示國旗")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Font Size Adjustment Section
+            item {
+                Text("字體大小調整", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(4.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("字體大小:", fontWeight = FontWeight.Medium)
+                            Text("${uiState.fontSizeScale}%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = uiState.fontSizeScale.toFloat(),
+                            onValueChange = { viewModel.setFontSizeScale(it.toInt()) },
+                            valueRange = 80f..120f,
+                            steps = 3
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("小 (80%)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("標準 (100%)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("大 (120%)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
@@ -266,6 +334,8 @@ fun WidgetSettingsScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 WidgetPreviewCard(
                     rateType = uiState.rateType,
+                    displayMode = uiState.displayMode,
+                    fontSizeScale = uiState.fontSizeScale,
                     selectedCurrencies = uiState.selectedCurrencies,
                     bgTransparency = uiState.bgTransparency,
                     rates = uiState.availableRates
@@ -292,6 +362,8 @@ fun WidgetSettingsScreen(
 @Composable
 fun WidgetPreviewCard(
     rateType: RateType,
+    displayMode: WidgetDisplayMode,
+    fontSizeScale: Int,
     selectedCurrencies: List<CurrencyCode>,
     bgTransparency: Int,
     rates: List<ExchangeRate>
@@ -299,9 +371,11 @@ fun WidgetPreviewCard(
     val displayCurrencies = selectedCurrencies.take(4).ifEmpty { listOf(CurrencyCode.USD) }
     val isSingle = displayCurrencies.size == 1
 
-    val alphaFloat = (100 - bgTransparency) / 100f
+    val alphaFloat = (100 - bgTransparency.coerceIn(0, 100)) / 100f
     val baseBgColor = Color(0xFF17212F)
     val cardBgColor = baseBgColor.copy(alpha = alphaFloat)
+
+    val scale = fontSizeScale.coerceIn(80, 120) / 100f
 
     // Wallpaper simulation background box to show transparency effect
     Box(
@@ -324,64 +398,97 @@ fun WidgetPreviewCard(
                     val rate = rates.find { it.currency == code }
                     val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
                     val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
-                    val buyStr = buyVal?.toPlainString() ?: "32.0160"
-                    val sellStr = sellVal?.toPlainString() ?: "32.1760"
+                    val buyStr = buyVal?.toPlainString() ?: "31.7540"
+                    val sellStr = sellVal?.toPlainString() ?: "32.3960"
+
+                    val titleText = if (displayMode == WidgetDisplayMode.FLAG_ONLY) code.flagEmoji else "${code.flagEmoji} ${code.name}"
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("${code.flagEmoji} ${code.name}", color = Color(0xFFF8FAFC), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        Text("22:06", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                        Text(
+                            text = titleText,
+                            color = Color(0xFFF8FAFC),
+                            fontSize = (12 * scale).sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "22:06",
+                            color = Color(0xFF94A3B8),
+                            fontSize = (9 * scale).sp
+                        )
                     }
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row {
-                        Text("買 ", color = Color(0xFF94A3B8), fontSize = 12.sp)
-                        Text(buyStr, color = Color(0xFFE2E8F0), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "買 ",
+                            color = Color(0xFF94A3B8),
+                            fontSize = (10 * scale).sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = buyStr,
+                            color = Color(0xFFE2E8F0),
+                            fontSize = (12 * scale).sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
-                    Row {
-                        Text("賣 ", color = Color(0xFF94A3B8), fontSize = 12.sp)
-                        Text(sellStr, color = Color(0xFF38BDF8), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "賣 ",
+                            color = Color(0xFF94A3B8),
+                            fontSize = (10 * scale).sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = sellStr,
+                            color = Color(0xFF38BDF8),
+                            fontSize = (12 * scale).sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 } else {
                     displayCurrencies.forEachIndexed { index, code ->
                         val rate = rates.find { it.currency == code }
                         val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
                         val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
-                        val buyStr = buyVal?.toPlainString() ?: "32.0160"
-                        val sellStr = sellVal?.toPlainString() ?: "32.1760"
+                        val buyStr = buyVal?.toPlainString() ?: "31.7540"
+                        val sellStr = sellVal?.toPlainString() ?: "32.3960"
+
+                        val currencyText = if (displayMode == WidgetDisplayMode.FLAG_ONLY) code.flagEmoji else "${code.flagEmoji} ${code.name}"
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${code.flagEmoji} ${code.name}",
+                                text = currencyText,
                                 color = Color(0xFFF8FAFC),
-                                fontSize = 12.sp,
+                                fontSize = (11 * scale).sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.weight(2.2f)
                             )
                             Text(
                                 text = buyStr,
                                 color = Color(0xFFE2E8F0),
-                                fontSize = 12.sp,
+                                fontSize = (11 * scale).sp,
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.weight(2.2f)
                             )
                             Text(
                                 text = sellStr,
                                 color = Color(0xFF38BDF8),
-                                fontSize = 12.sp,
+                                fontSize = (11 * scale).sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.weight(2.2f)
                             )
                             Text(
                                 text = if (index == 0) "22:06" else "",
                                 color = Color(0xFF94A3B8),
-                                fontSize = 10.sp,
+                                fontSize = (9 * scale).sp,
                                 modifier = Modifier.weight(1.8f)
                             )
                         }

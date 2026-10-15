@@ -28,6 +28,8 @@ class UserPreferencesRepository @Inject constructor(
         fun widgetRateTypeKey(appWidgetId: String) = stringPreferencesKey("widget_${appWidgetId}_rate_type")
         fun widgetCurrenciesKey(appWidgetId: String) = stringPreferencesKey("widget_${appWidgetId}_currencies")
         fun widgetBgTransparencyKey(appWidgetId: String) = intPreferencesKey("widget_${appWidgetId}_bg_transparency")
+        fun widgetFontSizeScaleKey(appWidgetId: String) = intPreferencesKey("widget_${appWidgetId}_font_size_scale")
+        fun widgetDisplayModeKey(appWidgetId: String) = stringPreferencesKey("widget_${appWidgetId}_display_mode")
     }
 
     val backgroundIntervalMins: Flow<Int> = context.dataStore.data.map {
@@ -84,12 +86,17 @@ class UserPreferencesRepository @Inject constructor(
             }
 
             val bgTransparency = prefs[Keys.widgetBgTransparencyKey(appWidgetId)] ?: 0
+            val fontSizeScale = prefs[Keys.widgetFontSizeScaleKey(appWidgetId)] ?: 100
+            val displayModeStr = prefs[Keys.widgetDisplayModeKey(appWidgetId)]
+            val displayMode = WidgetDisplayMode.fromString(displayModeStr)
 
             WidgetConfig(
                 appWidgetId = appWidgetId,
                 rateType = rateType,
                 selectedCurrencies = if (currencies.isEmpty()) CurrencyCode.DEFAULT_FAVORITES else currencies,
-                bgTransparency = bgTransparency.coerceIn(0, 100)
+                bgTransparency = bgTransparency.coerceIn(0, 100),
+                fontSizeScale = fontSizeScale.coerceIn(80, 120),
+                displayMode = displayMode
             )
         }
     }
@@ -99,6 +106,8 @@ class UserPreferencesRepository @Inject constructor(
             prefs[Keys.widgetRateTypeKey(config.appWidgetId)] = config.rateType.name
             prefs[Keys.widgetCurrenciesKey(config.appWidgetId)] = config.selectedCurrencies.joinToString(",") { it.name }
             prefs[Keys.widgetBgTransparencyKey(config.appWidgetId)] = config.bgTransparency.coerceIn(0, 100)
+            prefs[Keys.widgetFontSizeScaleKey(config.appWidgetId)] = config.fontSizeScale.coerceIn(80, 120)
+            prefs[Keys.widgetDisplayModeKey(config.appWidgetId)] = config.displayMode.name
         }
     }
 
@@ -107,6 +116,8 @@ class UserPreferencesRepository @Inject constructor(
             prefs.remove(Keys.widgetRateTypeKey(appWidgetId))
             prefs.remove(Keys.widgetCurrenciesKey(appWidgetId))
             prefs.remove(Keys.widgetBgTransparencyKey(appWidgetId))
+            prefs.remove(Keys.widgetFontSizeScaleKey(appWidgetId))
+            prefs.remove(Keys.widgetDisplayModeKey(appWidgetId))
         }
     }
 }
