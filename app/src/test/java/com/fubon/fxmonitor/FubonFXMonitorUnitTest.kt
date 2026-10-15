@@ -221,6 +221,42 @@ class FubonFXMonitorUnitTest {
     }
 
     @Test
+    fun testWidgetConfigFontSizeAndDisplayModeDefaults() {
+        val defaultConfig = com.fubon.fxmonitor.data.local.WidgetConfig(appWidgetId = "widget_3")
+        assertEquals(100, defaultConfig.fontSizeScale)
+        assertEquals(com.fubon.fxmonitor.data.local.WidgetDisplayMode.FLAG_ONLY, defaultConfig.displayMode)
+
+        val customConfig = com.fubon.fxmonitor.data.local.WidgetConfig(
+            appWidgetId = "widget_4",
+            fontSizeScale = 80,
+            displayMode = com.fubon.fxmonitor.data.local.WidgetDisplayMode.FLAG_AND_CODE
+        )
+        assertEquals(80, customConfig.fontSizeScale)
+        assertEquals(com.fubon.fxmonitor.data.local.WidgetDisplayMode.FLAG_AND_CODE, customConfig.displayMode)
+    }
+
+    @Test
+    fun testWidgetDisplayModeFromString() {
+        assertEquals(
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.FLAG_AND_CODE,
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.fromString("FLAG_AND_CODE")
+        )
+        assertEquals(
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.FLAG_ONLY,
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.fromString("FLAG_ONLY")
+        )
+        // Fallback for null or invalid string
+        assertEquals(
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.FLAG_ONLY,
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.fromString(null)
+        )
+        assertEquals(
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.FLAG_ONLY,
+            com.fubon.fxmonitor.data.local.WidgetDisplayMode.fromString("INVALID_MODE")
+        )
+    }
+
+    @Test
     fun testExtractTimeFromOfficialUpdateTime() {
         assertEquals("22:34", extractTime("2026/10/13 22:34:00"))
         assertEquals("22:34", extractTime("22:34"))

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fubon.fxmonitor.data.local.UserPreferencesRepository
 import com.fubon.fxmonitor.data.local.WidgetConfig
+import com.fubon.fxmonitor.data.local.WidgetDisplayMode
 import com.fubon.fxmonitor.data.repository.ExchangeRateRepository
 import com.fubon.fxmonitor.domain.model.CurrencyCode
 import com.fubon.fxmonitor.domain.model.ExchangeRate
@@ -22,6 +23,8 @@ data class WidgetSettingsUiState(
     val rateType: RateType = RateType.SPOT,
     val selectedCurrencies: List<CurrencyCode> = listOf(CurrencyCode.USD, CurrencyCode.JPY),
     val bgTransparency: Int = 0,
+    val fontSizeScale: Int = 100,
+    val displayMode: WidgetDisplayMode = WidgetDisplayMode.FLAG_ONLY,
     val availableRates: List<ExchangeRate> = emptyList(),
     val isSaved: Boolean = false
 )
@@ -68,7 +71,9 @@ class WidgetSettingsViewModel @Inject constructor(
                     it.copy(
                         rateType = config.rateType,
                         selectedCurrencies = currencies,
-                        bgTransparency = config.bgTransparency
+                        bgTransparency = config.bgTransparency,
+                        fontSizeScale = config.fontSizeScale,
+                        displayMode = config.displayMode
                     )
                 }
             }
@@ -89,6 +94,14 @@ class WidgetSettingsViewModel @Inject constructor(
 
     fun setBgTransparency(transparency: Int) {
         _uiState.update { it.copy(bgTransparency = transparency.coerceIn(0, 100), isSaved = false) }
+    }
+
+    fun setFontSizeScale(scale: Int) {
+        _uiState.update { it.copy(fontSizeScale = scale.coerceIn(80, 120), isSaved = false) }
+    }
+
+    fun setDisplayMode(mode: WidgetDisplayMode) {
+        _uiState.update { it.copy(displayMode = mode, isSaved = false) }
     }
 
     fun toggleCurrency(code: CurrencyCode) {
@@ -132,7 +145,9 @@ class WidgetSettingsViewModel @Inject constructor(
                 appWidgetId = state.selectedWidgetId,
                 rateType = state.rateType,
                 selectedCurrencies = state.selectedCurrencies.take(8),
-                bgTransparency = state.bgTransparency
+                bgTransparency = state.bgTransparency,
+                fontSizeScale = state.fontSizeScale,
+                displayMode = state.displayMode
             )
             userPrefs.saveWidgetConfig(config)
             WidgetUpdater.updateAllWidgets(context)

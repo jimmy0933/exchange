@@ -27,6 +27,7 @@ import com.fubon.fxmonitor.data.local.AppDatabase
 import com.fubon.fxmonitor.data.local.LatestRateEntity
 import com.fubon.fxmonitor.data.local.UserPreferencesRepository
 import com.fubon.fxmonitor.data.local.WidgetConfig
+import com.fubon.fxmonitor.data.local.WidgetDisplayMode
 import com.fubon.fxmonitor.domain.model.CurrencyCode
 import com.fubon.fxmonitor.domain.model.RateType
 import kotlinx.coroutines.Dispatchers
@@ -111,6 +112,18 @@ fun SmallWidgetContent(
     val officialTime = rateEntity?.officialUpdateTime ?: "未更新"
     val formattedTime = extractTime(officialTime)
 
+    val scale = config.fontSizeScale.coerceIn(80, 120) / 100f
+    val titleText = if (config.displayMode == WidgetDisplayMode.FLAG_ONLY) {
+        code.flagEmoji
+    } else {
+        "${code.flagEmoji} ${code.name}"
+    }
+
+    val titleFontSize = (11 * scale).sp
+    val timeFontSize = (8.5 * scale).sp
+    val labelFontSize = (9.5 * scale).sp
+    val rateFontSize = (11.5 * scale).sp
+
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -127,10 +140,10 @@ fun SmallWidgetContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${code.flagEmoji} ${code.name}",
+                text = titleText,
                 style = TextStyle(
                     color = CurrencyTextColorProvider,
-                    fontSize = 13.sp,
+                    fontSize = titleFontSize,
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -139,7 +152,7 @@ fun SmallWidgetContent(
                 text = formattedTime,
                 style = TextStyle(
                     color = TimeTextColorProvider,
-                    fontSize = 10.sp
+                    fontSize = timeFontSize
                 )
             )
         }
@@ -155,7 +168,7 @@ fun SmallWidgetContent(
                 text = "買 ",
                 style = TextStyle(
                     color = TimeTextColorProvider,
-                    fontSize = 11.sp,
+                    fontSize = labelFontSize,
                     fontWeight = FontWeight.Medium
                 )
             )
@@ -163,7 +176,7 @@ fun SmallWidgetContent(
                 text = buyStr,
                 style = TextStyle(
                     color = BuyRateColorProvider,
-                    fontSize = 13.sp,
+                    fontSize = rateFontSize,
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -180,7 +193,7 @@ fun SmallWidgetContent(
                 text = "賣 ",
                 style = TextStyle(
                     color = TimeTextColorProvider,
-                    fontSize = 11.sp,
+                    fontSize = labelFontSize,
                     fontWeight = FontWeight.Medium
                 )
             )
@@ -188,7 +201,7 @@ fun SmallWidgetContent(
                 text = sellStr,
                 style = TextStyle(
                     color = SellRateColorProvider,
-                    fontSize = 13.sp,
+                    fontSize = rateFontSize,
                     fontWeight = FontWeight.Bold
                 )
             )

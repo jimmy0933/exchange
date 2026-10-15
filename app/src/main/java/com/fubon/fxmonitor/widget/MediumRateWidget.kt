@@ -24,6 +24,7 @@ import com.fubon.fxmonitor.data.local.AppDatabase
 import com.fubon.fxmonitor.data.local.LatestRateEntity
 import com.fubon.fxmonitor.data.local.UserPreferencesRepository
 import com.fubon.fxmonitor.data.local.WidgetConfig
+import com.fubon.fxmonitor.data.local.WidgetDisplayMode
 import com.fubon.fxmonitor.domain.model.RateType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -72,6 +73,11 @@ fun MediumWidgetContent(
     val firstOfficialTime = firstEntity?.officialUpdateTime
     val formattedTime = if (firstOfficialTime != null) extractTime(firstOfficialTime) else "未更新"
 
+    val scale = config.fontSizeScale.coerceIn(80, 120) / 100f
+    val currencyFontSize = (11 * scale).sp
+    val rateFontSize = (11 * scale).sp
+    val timeFontSize = (9 * scale).sp
+
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -89,16 +95,22 @@ fun MediumWidgetContent(
             val buyStr = formatWidgetRate(buyVal)
             val sellStr = formatWidgetRate(sellVal)
 
+            val currencyText = if (config.displayMode == WidgetDisplayMode.FLAG_ONLY) {
+                code.flagEmoji
+            } else {
+                "${code.flagEmoji} ${code.name}"
+            }
+
             Row(
                 modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Column 1: Flag & Currency Code
                 Text(
-                    text = "${code.flagEmoji} ${code.name}",
+                    text = currencyText,
                     style = TextStyle(
                         color = CurrencyTextColorProvider,
-                        fontSize = 12.sp,
+                        fontSize = currencyFontSize,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = GlanceModifier.defaultWeight()
@@ -109,7 +121,7 @@ fun MediumWidgetContent(
                     text = buyStr,
                     style = TextStyle(
                         color = BuyRateColorProvider,
-                        fontSize = 12.sp,
+                        fontSize = rateFontSize,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = GlanceModifier.defaultWeight()
@@ -120,7 +132,7 @@ fun MediumWidgetContent(
                     text = sellStr,
                     style = TextStyle(
                         color = SellRateColorProvider,
-                        fontSize = 12.sp,
+                        fontSize = rateFontSize,
                         fontWeight = FontWeight.Bold
                     ),
                     modifier = GlanceModifier.defaultWeight()
@@ -131,7 +143,7 @@ fun MediumWidgetContent(
                     text = if (index == 0) formattedTime else "",
                     style = TextStyle(
                         color = TimeTextColorProvider,
-                        fontSize = 10.sp
+                        fontSize = timeFontSize
                     ),
                     modifier = GlanceModifier.defaultWeight()
                 )
