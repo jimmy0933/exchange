@@ -21,6 +21,11 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.ColorFilter
+import androidx.glance.appwidget.action.actionRunCallback
+import com.fubon.fxmonitor.R
 import androidx.glance.color.ColorProvider as DayNightColorProvider
 import com.fubon.fxmonitor.MainActivity
 import com.fubon.fxmonitor.data.local.AppDatabase
@@ -55,6 +60,11 @@ val BuyRateColorProvider: ColorProvider = DayNightColorProvider(
 val SellRateColorProvider: ColorProvider = DayNightColorProvider(
     day = Color(0xFF0284C7),
     night = Color(0xFF38BDF8)
+)
+
+val DividerColorProvider: ColorProvider = DayNightColorProvider(
+    day = Color(0xFFE2E8F0),
+    night = Color(0xFF334155)
 )
 
 val TimeTextColorProvider: ColorProvider = DayNightColorProvider(
@@ -153,7 +163,14 @@ fun SmallWidgetContent(
                 style = TextStyle(
                     color = TimeTextColorProvider,
                     fontSize = timeFontSize
-                )
+                ),
+                modifier = GlanceModifier.padding(end = 4.dp)
+            )
+            Image(
+                provider = ImageProvider(R.drawable.ic_refresh),
+                contentDescription = "Refresh",
+                colorFilter = ColorFilter.tint(TimeTextColorProvider),
+                modifier = GlanceModifier.size(12.dp).clickable(actionRunCallback<RefreshAction>())
             )
         }
 
@@ -232,4 +249,18 @@ fun extractTime(timeStr: String): String {
 
 class SmallRateWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = SmallRateWidget()
+
+    override fun onUpdate(
+        context: android.content.Context,
+        appWidgetManager: android.appwidget.AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.fubon.fxmonitor.worker.ExchangeMonitorWorker>().build()
+        androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+            "widget_auto_update",
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
+    }
 }
