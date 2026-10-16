@@ -5,6 +5,11 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.ColorFilter
+import androidx.glance.appwidget.action.actionRunCallback
+import com.fubon.fxmonitor.R
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
@@ -83,10 +88,40 @@ fun MediumWidgetContent(
             .fillMaxSize()
             .cornerRadius(16.dp)
             .background(bgColorProvider)
-            .padding(8.dp)
+            .padding(12.dp)
             .clickable(actionStartActivity(intent)),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.Top
     ) {
+        // Header
+        Row(
+            modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isCash) "現鈔匯率" else "即期匯率",
+                style = TextStyle(
+                    color = TimeTextColorProvider,
+                    fontSize = timeFontSize,
+                    fontWeight = FontWeight.Medium
+                )
+            )
+            Spacer(modifier = GlanceModifier.defaultWeight())
+            Text(
+                text = formattedTime,
+                style = TextStyle(
+                    color = TimeTextColorProvider,
+                    fontSize = timeFontSize
+                ),
+                modifier = GlanceModifier.padding(end = 4.dp)
+            )
+            Image(
+                provider = ImageProvider(R.drawable.ic_refresh),
+                contentDescription = "Refresh",
+                colorFilter = ColorFilter.tint(TimeTextColorProvider),
+                modifier = GlanceModifier.size(12.dp).clickable(actionRunCallback<RefreshAction>())
+            )
+        }
+
         displayCurrencies.forEachIndexed { index, code ->
             val entity = allRates[code.name]
             val buyVal = if (isCash) entity?.cashBuy else entity?.spotBuy
@@ -102,10 +137,9 @@ fun MediumWidgetContent(
             }
 
             Row(
-                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 3.dp),
+                modifier = GlanceModifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Column 1: Flag & Currency Code
                 Text(
                     text = currencyText,
                     style = TextStyle(
@@ -115,8 +149,6 @@ fun MediumWidgetContent(
                     ),
                     modifier = GlanceModifier.defaultWeight()
                 )
-
-                // Column 2: Buy Rate
                 Text(
                     text = buyStr,
                     style = TextStyle(
@@ -126,8 +158,6 @@ fun MediumWidgetContent(
                     ),
                     modifier = GlanceModifier.defaultWeight()
                 )
-
-                // Column 3: Sell Rate
                 Text(
                     text = sellStr,
                     style = TextStyle(
@@ -137,16 +167,9 @@ fun MediumWidgetContent(
                     ),
                     modifier = GlanceModifier.defaultWeight()
                 )
-
-                // Column 4: Update Time (only on first row)
-                Text(
-                    text = if (index == 0) formattedTime else "",
-                    style = TextStyle(
-                        color = TimeTextColorProvider,
-                        fontSize = timeFontSize
-                    ),
-                    modifier = GlanceModifier.defaultWeight()
-                )
+            }
+            if (index < displayCurrencies.size - 1) {
+                Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(DividerColorProvider)) {}
             }
         }
     }
@@ -154,4 +177,18 @@ fun MediumWidgetContent(
 
 class MediumRateWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = MediumRateWidget()
+
+    override fun onUpdate(
+        context: android.content.Context,
+        appWidgetManager: android.appwidget.AppWidgetManager,
+        appWidgetIds: IntArray
+    ) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.fubon.fxmonitor.worker.ExchangeMonitorWorker>().build()
+        androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(
+            "widget_auto_update",
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
+    }
 }
