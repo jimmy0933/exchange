@@ -14,7 +14,7 @@ import androidx.room.RoomDatabase
         ErrorLogEntity::class
     ],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun rateDao(): RateDao
@@ -31,9 +31,17 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "fubon_fx_monitor.db"
-                ).fallbackToDestructiveMigration().build()
+                ).addMigrations(MIGRATION_1_2)
+                 .build()
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE rate_history ADD COLUMN source TEXT NOT NULL DEFAULT '台北富邦銀行'")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rate_history_currencyCode_timestamp` ON `rate_history` (`currencyCode`, `timestamp`)")
             }
         }
     }

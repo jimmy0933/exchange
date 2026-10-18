@@ -87,6 +87,10 @@ class AlertViewModel @Inject constructor(
         val state = _uiState.value
         val valDouble = state.targetValueInput.toDoubleOrNull() ?: return
 
+        if (valDouble.isNaN() || valDouble.isInfinite() || valDouble <= 0.0) {
+            return // Invalid input
+        }
+
         viewModelScope.launch {
             alertDao.insertAlert(
                 ExchangeAlertEntity(

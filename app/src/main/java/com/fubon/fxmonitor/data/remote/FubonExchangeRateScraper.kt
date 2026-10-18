@@ -40,12 +40,15 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IllegalStateException("HTTP error code: ${response.code}")
+        val html = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IllegalStateException("HTTP error code: ${response.code}")
+            response.body?.string() ?: throw IllegalStateException("Empty body from primary source")
+        }
+        return parsePrimaryHtml(html)
+    }
 
-        val html = response.body?.string() ?: throw IllegalStateException("Empty body from primary source")
+    fun parsePrimaryHtml(html: String): List<ExchangeRate> {
         val doc = Jsoup.parse(html)
-
         // Parse official update time e.g., 2026/10/13 09:23:31
         val timeElement = doc.selectFirst(".ico-date")
         val fullTimeText = timeElement?.text() ?: ""
@@ -54,14 +57,40 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
         val rates = mutableListOf<ExchangeRate>()
         val rows = doc.select("table.rate-table tbody tr")
 
+        // Find column indices from headers
+        val headers = doc.select("table.rate-table thead tr th, table.rate-table thead tr td")
+        var spotIndex = -1
+        var cashIndex = -1
+        var currencyIndex = -1
+        headers.forEachIndexed { index, element ->
+            val text = element.text()
+            if (text.contains("幣別")) {
+                currencyIndex = index
+            } else if (text.contains("即期")) {
+                spotIndex = index
+            } else if (text.contains("現鈔")) {
+                cashIndex = index
+            }
+        }
+
+        if (currencyIndex == -1 || spotIndex == -1 || cashIndex == -1) {
+            // Fallback to defaults
+            currencyIndex = 1
+            spotIndex = 3
+            cashIndex = 4
+        }
+
+        val uniqueCodes = mutableSetOf<CurrencyCode>()
+
         for (row in rows) {
             val cols = row.select("td")
-            if (cols.size >= 5) {
-                val currencyText = cols[1].text()
+            if (cols.size > maxOf(currencyIndex, spotIndex, cashIndex)) {
+                val currencyText = cols[currencyIndex].text()
                 val code = parseCurrencyCode(currencyText) ?: continue
+                if (!uniqueCodes.add(code)) continue // Ensure uniqueness
 
-                val spotText = cols[3].text()
-                val cashText = cols[4].text()
+                val spotText = cols[spotIndex].text()
+                val cashText = cols[cashIndex].text()
 
                 val (spotBuy, spotSell) = parsePair(spotText)
                 val (cashBuy, cashSell) = parsePair(cashText)
@@ -80,7 +109,7 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
             }
         }
 
-        if (rates.isEmpty()) {
+        if (rates.size < 5) {
             throw IllegalStateException("Failed to parse rates from primary source")
         }
 
@@ -93,22 +122,27 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
             .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) throw IllegalStateException("HTTP error code from backup: ${response.code}")
+        val html = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IllegalStateException("HTTP error code from backup: ${response.code}")
+            response.body?.string() ?: throw IllegalStateException("Empty body from backup source")
+        }
+        return parseBackupHtml(html)
+    }
 
-        val html = response.body?.string() ?: throw IllegalStateException("Empty body from backup source")
+    fun parseBackupHtml(html: String): List<ExchangeRate> {
         val doc = Jsoup.parse(html)
-
         val timeText = doc.select("tr, td, span, div").find { it.text().contains("更新時間") || it.text().contains("時間") }?.text() ?: ""
         val officialTime = parseOfficialTime(timeText).ifEmpty { "最新牌價" }
 
         val rates = mutableListOf<ExchangeRate>()
         val rows = doc.select("table tr")
+        val uniqueCodes = mutableSetOf<CurrencyCode>()
         for (row in rows) {
             val cols = row.select("td")
             if (cols.size == 5) {
                 val currencyText = cols[0].text()
                 val code = parseCurrencyCode(currencyText) ?: continue
+                if (!uniqueCodes.add(code)) continue
 
                 val spotBuy = parseSingleRate(cols[1].text())
                 val spotSell = parseSingleRate(cols[2].text())
@@ -129,7 +163,7 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
             }
         }
 
-        if (rates.isEmpty()) {
+        if (rates.size < 5) {
             throw IllegalStateException("Failed to parse rates from backup source")
         }
 
@@ -138,7 +172,12 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
 
     private fun parseOfficialTime(text: String): String {
         val regex = Regex("""\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2}""")
-        return regex.find(text)?.value ?: text.replace("更新", "").replace("時間：", "").trim()
+        val match = regex.find(text)?.value
+        if (match != null) return match
+        val fallbackRegex = Regex("""\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}""")
+        val matchFallback = fallbackRegex.find(text)?.value
+        if (matchFallback != null) return matchFallback
+        return text.replace("更新", "").replace("時間：", "").trim()
     }
 
     private fun parseCurrencyCode(text: String): CurrencyCode? {
@@ -159,18 +198,9 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
 
     private fun parsePair(text: String): Pair<BigDecimal?, BigDecimal?> {
         val trimmed = text.trim()
-        if (trimmed.contains("---") || trimmed.isBlank()) {
-            return Pair(null, null)
-        }
         val parts = trimmed.split(Regex("""\s+""")).filter { it.isNotBlank() }
-        if (parts.size >= 2) {
-            val buy = if (parts[0].contains("---")) null else parts[0].toBigDecimalOrNull()
-            val sell = if (parts[1].contains("---")) null else parts[1].toBigDecimalOrNull()
-            return Pair(buy, sell)
-        } else if (parts.size == 1) {
-            val val1 = if (parts[0].contains("---")) null else parts[0].toBigDecimalOrNull()
-            return Pair(val1, null)
-        }
-        return Pair(null, null)
+        val buy = parts.getOrNull(0)?.let { if (it.contains("---")) null else it.toBigDecimalOrNull() }
+        val sell = parts.getOrNull(1)?.let { if (it.contains("---")) null else it.toBigDecimalOrNull() }
+        return Pair(buy, sell)
     }
 }

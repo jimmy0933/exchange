@@ -7,10 +7,13 @@ import com.fubon.fxmonitor.data.local.ErrorLogEntity
 import com.fubon.fxmonitor.data.local.RateDao
 import com.fubon.fxmonitor.data.local.UserPreferencesRepository
 import com.fubon.fxmonitor.data.repository.ExchangeRateRepository
+import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import com.fubon.fxmonitor.worker.ExchangeMonitorWorker
 
 data class SettingsUiState(
     val intervalMins: Int = 15,
@@ -23,6 +26,7 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val userPrefs: UserPreferencesRepository,
     private val rateDao: RateDao,
     private val errorLogDao: ErrorLogDao,
@@ -72,6 +76,7 @@ class SettingsViewModel @Inject constructor(
     fun setInterval(mins: Int) {
         viewModelScope.launch {
             userPrefs.setBackgroundInterval(mins)
+            ExchangeMonitorWorker.schedule(context, mins.toLong())
         }
     }
 

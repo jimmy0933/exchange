@@ -24,16 +24,22 @@ object WidgetUpdater {
     }
 
     suspend fun getPlacedWidgetIds(context: Context): List<String> {
-        val manager = GlanceAppWidgetManager(context)
-        val ids = mutableListOf<String>()
-        val smalls = manager.getGlanceIds(SmallRateWidget::class.java)
-        val mediums = manager.getGlanceIds(MediumRateWidget::class.java)
-        val larges = manager.getGlanceIds(LargeRateWidget::class.java)
+        return getPlacedWidgetTypes(context).keys.toList()
+    }
 
-        (smalls + mediums + larges).forEach { glanceId ->
-            ids.add(glanceId.toString())
+    suspend fun getPlacedWidgetTypes(context: Context): Map<String, String> {
+        val manager = GlanceAppWidgetManager(context)
+        val typeMap = mutableMapOf<String, String>()
+        manager.getGlanceIds(SmallRateWidget::class.java).forEach {
+            typeMap[it.toString()] = "Small"
         }
-        return ids
+        manager.getGlanceIds(MediumRateWidget::class.java).forEach {
+            typeMap[it.toString()] = "Medium"
+        }
+        manager.getGlanceIds(LargeRateWidget::class.java).forEach {
+            typeMap[it.toString()] = "Large"
+        }
+        return typeMap
     }
 
     private suspend fun GlanceAppWidget.updateAll(context: Context) {

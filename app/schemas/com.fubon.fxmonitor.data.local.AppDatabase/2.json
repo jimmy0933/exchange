@@ -1,0 +1,357 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "d9b28acb47ee71c82ec4aa33b659a8ce",
+    "entities": [
+      {
+        "tableName": "latest_rates",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`currencyCode` TEXT NOT NULL, `spotBuy` TEXT, `spotSell` TEXT, `cashBuy` TEXT, `cashSell` TEXT, `officialUpdateTime` TEXT NOT NULL, `localFetchTime` INTEGER NOT NULL, `source` TEXT NOT NULL, `isFavorite` INTEGER NOT NULL, `displayOrder` INTEGER NOT NULL, PRIMARY KEY(`currencyCode`))",
+        "fields": [
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spotBuy",
+            "columnName": "spotBuy",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "spotSell",
+            "columnName": "spotSell",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "cashBuy",
+            "columnName": "cashBuy",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "cashSell",
+            "columnName": "cashSell",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "officialUpdateTime",
+            "columnName": "officialUpdateTime",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localFetchTime",
+            "columnName": "localFetchTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFavorite",
+            "columnName": "isFavorite",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "displayOrder",
+            "columnName": "displayOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "currencyCode"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "rate_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `currencyCode` TEXT NOT NULL, `spotBuy` TEXT, `spotSell` TEXT, `cashBuy` TEXT, `cashSell` TEXT, `officialUpdateTime` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `isOfficialDaily` INTEGER NOT NULL, `source` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "spotBuy",
+            "columnName": "spotBuy",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "spotSell",
+            "columnName": "spotSell",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "cashBuy",
+            "columnName": "cashBuy",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "cashSell",
+            "columnName": "cashSell",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "officialUpdateTime",
+            "columnName": "officialUpdateTime",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isOfficialDaily",
+            "columnName": "isOfficialDaily",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_rate_history_currencyCode_timestamp",
+            "unique": false,
+            "columnNames": [
+              "currencyCode",
+              "timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_rate_history_currencyCode_timestamp` ON `${TABLE_NAME}` (`currencyCode`, `timestamp`)"
+          },
+          {
+            "name": "index_rate_history_currencyCode_officialUpdateTime",
+            "unique": true,
+            "columnNames": [
+              "currencyCode",
+              "officialUpdateTime"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_rate_history_currencyCode_officialUpdateTime` ON `${TABLE_NAME}` (`currencyCode`, `officialUpdateTime`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "exchange_alerts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `currencyCode` TEXT NOT NULL, `rateType` TEXT NOT NULL, `bankSide` TEXT NOT NULL, `triggerCondition` TEXT NOT NULL, `targetValue` REAL NOT NULL, `isEnabled` INTEGER NOT NULL, `createdTime` INTEGER NOT NULL, `lastTriggeredTime` INTEGER, `isTriggeredAndArmed` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rateType",
+            "columnName": "rateType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bankSide",
+            "columnName": "bankSide",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "triggerCondition",
+            "columnName": "triggerCondition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetValue",
+            "columnName": "targetValue",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isEnabled",
+            "columnName": "isEnabled",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdTime",
+            "columnName": "createdTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastTriggeredTime",
+            "columnName": "lastTriggeredTime",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isTriggeredAndArmed",
+            "columnName": "isTriggeredAndArmed",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "alert_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `alertId` INTEGER NOT NULL, `currencyCode` TEXT NOT NULL, `rateType` TEXT NOT NULL, `bankSide` TEXT NOT NULL, `triggeredRate` REAL NOT NULL, `targetValue` REAL NOT NULL, `conditionDescription` TEXT NOT NULL, `triggeredTime` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "alertId",
+            "columnName": "alertId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currencyCode",
+            "columnName": "currencyCode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rateType",
+            "columnName": "rateType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bankSide",
+            "columnName": "bankSide",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "triggeredRate",
+            "columnName": "triggeredRate",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetValue",
+            "columnName": "targetValue",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conditionDescription",
+            "columnName": "conditionDescription",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "triggeredTime",
+            "columnName": "triggeredTime",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "error_logs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `message` TEXT NOT NULL, `timestamp` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd9b28acb47ee71c82ec4aa33b659a8ce')"
+    ]
+  }
+}

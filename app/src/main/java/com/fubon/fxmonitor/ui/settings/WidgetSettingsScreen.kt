@@ -18,6 +18,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.fubon.fxmonitor.data.local.WidgetDisplayMode
 import com.fubon.fxmonitor.domain.model.CurrencyCode
 import com.fubon.fxmonitor.domain.model.ExchangeRate
@@ -332,14 +335,19 @@ fun WidgetSettingsScreen(
             item {
                 Text("Widget 預覽效果", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(4.dp))
-                WidgetPreviewCard(
-                    rateType = uiState.rateType,
-                    displayMode = uiState.displayMode,
-                    fontSizeScale = uiState.fontSizeScale,
-                    selectedCurrencies = uiState.selectedCurrencies,
-                    bgTransparency = uiState.bgTransparency,
-                    rates = uiState.availableRates
-                )
+                if (uiState.selectedWidgetId == "no_widget") {
+                    Text("請先新增 Widget 至桌面", color = Color.Gray, modifier = Modifier.padding(16.dp))
+                } else {
+                    WidgetPreviewCard(
+                        rateType = uiState.rateType,
+                        displayMode = uiState.displayMode,
+                        fontSizeScale = uiState.fontSizeScale,
+                        selectedCurrencies = uiState.selectedCurrencies,
+                        bgTransparency = uiState.bgTransparency,
+                        rates = uiState.availableRates,
+                        widgetType = uiState.widgetTypes[uiState.selectedWidgetId] ?: "Small"
+                    )
+                }
             }
 
             // Save Button
@@ -366,10 +374,16 @@ fun WidgetPreviewCard(
     fontSizeScale: Int,
     selectedCurrencies: List<CurrencyCode>,
     bgTransparency: Int,
-    rates: List<ExchangeRate>
+    rates: List<ExchangeRate>,
+    widgetType: String
 ) {
-    val displayCurrencies = selectedCurrencies.take(4).ifEmpty { listOf(CurrencyCode.USD) }
-    val isSingle = displayCurrencies.size == 1
+    val isSmall = widgetType == "Small"
+    val isMedium = widgetType == "Medium"
+
+    val maxCurrencies = if (isSmall) 2 else if (isMedium) 2 else 4
+    val displayCurrencies = selectedCurrencies.take(maxCurrencies).ifEmpty { listOf(CurrencyCode.USD) }
+
+    val previewWidth = if (isSmall) 80.dp else if (isMedium) 240.dp else 280.dp
 
     val alphaFloat = (100 - bgTransparency.coerceIn(0, 100)) / 100f
     val baseBgColor = Color(0xFF17212F)
@@ -387,19 +401,22 @@ fun WidgetPreviewCard(
     ) {
         Card(
             modifier = Modifier
-                .width(280.dp)
+                .width(previewWidth)
                 .wrapContentHeight(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = cardBgColor)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                if (isSingle) {
+                if (isSmall && displayCurrencies.size == 1) {
                     val code = displayCurrencies.first()
                     val rate = rates.find { it.currency == code }
                     val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
                     val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
-                    val buyStr = buyVal?.toPlainString() ?: "31.7540"
-                    val sellStr = sellVal?.toPlainString() ?: "32.3960"
+
+                    val buyStr = if (rate == null) "尚無" else (buyVal?.toPlainString() ?: "未提供")
+                    val sellStr = if (rate == null) "尚無" else (sellVal?.toPlainString() ?: "未提供")
+
+                    val timeStr = rate?.officialUpdateTime?.let { extractTimeFromOfficial(it) } ?: "--:--"
 
                     val titleText = if (displayMode == WidgetDisplayMode.FLAG_ONLY) code.flagEmoji else "${code.flagEmoji} ${code.name}"
 
@@ -415,7 +432,7 @@ fun WidgetPreviewCard(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "22:06",
+                            text = timeStr,
                             color = Color(0xFF94A3B8),
                             fontSize = (9 * scale).sp
                         )
@@ -455,8 +472,11 @@ fun WidgetPreviewCard(
                         val rate = rates.find { it.currency == code }
                         val buyVal = if (rateType == RateType.SPOT) rate?.spotBuy else rate?.cashBuy
                         val sellVal = if (rateType == RateType.SPOT) rate?.spotSell else rate?.cashSell
-                        val buyStr = buyVal?.toPlainString() ?: "31.7540"
-                        val sellStr = sellVal?.toPlainString() ?: "32.3960"
+
+                        val buyStr = if (rate == null) "尚無" else (buyVal?.toPlainString() ?: "未提供")
+                        val sellStr = if (rate == null) "尚無" else (sellVal?.toPlainString() ?: "未提供")
+
+                        val timeStr = rate?.officialUpdateTime?.let { extractTimeFromOfficial(it) } ?: "--:--"
 
                         val currencyText = if (displayMode == WidgetDisplayMode.FLAG_ONLY) code.flagEmoji else "${code.flagEmoji} ${code.name}"
 
@@ -469,28 +489,30 @@ fun WidgetPreviewCard(
                                 color = Color(0xFFF8FAFC),
                                 fontSize = (11 * scale).sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(2.2f)
+                                modifier = Modifier.weight(if (isSmall) 1.5f else 2.2f)
                             )
                             Text(
                                 text = buyStr,
                                 color = Color(0xFFE2E8F0),
                                 fontSize = (11 * scale).sp,
                                 fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(2.2f)
+                                modifier = Modifier.weight(if (isSmall) 1.5f else 2.2f)
                             )
                             Text(
                                 text = sellStr,
                                 color = Color(0xFF38BDF8),
                                 fontSize = (11 * scale).sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(2.2f)
+                                modifier = Modifier.weight(if (isSmall) 1.5f else 2.2f)
                             )
-                            Text(
-                                text = if (index == 0) "22:06" else "",
-                                color = Color(0xFF94A3B8),
-                                fontSize = (9 * scale).sp,
-                                modifier = Modifier.weight(1.8f)
-                            )
+                            if (!isSmall) {
+                                Text(
+                                    text = if (index == 0) timeStr else "",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = (9 * scale).sp,
+                                    modifier = Modifier.weight(1.8f)
+                                )
+                            }
                         }
                         if (index < displayCurrencies.size - 1) {
                             Spacer(modifier = Modifier.height(6.dp))
@@ -500,4 +522,12 @@ fun WidgetPreviewCard(
             }
         }
     }
+}
+
+private fun extractTimeFromOfficial(officialTimeStr: String?): String {
+    if (officialTimeStr.isNullOrBlank()) {
+        return SimpleDateFormat("HH:mm", Locale.TAIWAN).format(Date())
+    }
+    val match = Regex("""\d{2}:\d{2}""").find(officialTimeStr)
+    return match?.value ?: SimpleDateFormat("HH:mm", Locale.TAIWAN).format(Date())
 }
