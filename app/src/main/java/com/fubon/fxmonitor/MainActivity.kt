@@ -2,6 +2,14 @@ package com.fubon.fxmonitor
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
+import android.widget.Toast
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.first
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -37,11 +45,28 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var userPrefs: UserPreferencesRepository
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (!isGranted) {
+            Toast.makeText(this, "需允許通知權限才能接收到價提醒！", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         // Schedule periodic background worker
-        ExchangeMonitorWorker.schedule(this, 15)
+        lifecycleScope.launchWhenCreated {
+            val interval = userPrefs.backgroundIntervalMins.first()
+            ExchangeMonitorWorker.schedule(this@MainActivity, interval.toLong())
+        }
 
         val targetCurrency = intent?.getStringExtra("target_currency")
 

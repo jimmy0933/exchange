@@ -14,13 +14,17 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 import javax.inject.Inject
 
-enum class TimeRange(val label: String, val durationMillis: Long) {
-    WEEK("7日", 7L * 24 * 3600 * 1000),
-    MONTH("1個月", 30L * 24 * 3600 * 1000),
-    SIX_MONTHS("半年", 180L * 24 * 3600 * 1000),
-    YEAR("1年", 365L * 24 * 3600 * 1000)
+enum class TimeRange(val label: String) {
+    WEEK("7日"),
+    MONTH("1個月"),
+    SIX_MONTHS("半年"),
+    YEAR("1年")
 }
 
 data class DetailUiState(
@@ -67,15 +71,35 @@ class DetailViewModel @Inject constructor(
                 _uiState.map { it.selectedBankSide }.distinctUntilChanged()
             ) { latestList, historyList, range, type, side ->
                 val latest = latestList.find { it.currency == currency }
-                val now = System.currentTimeMillis()
-                val cutoff = now - range.durationMillis
+
+                val tz = TimeZone.getTimeZone("Asia/Taipei")
+                val cal = Calendar.getInstance(tz)
+                val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.TAIWAN).apply { timeZone = tz }
+                val fallbackSdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.TAIWAN).apply { timeZone = tz }
+
+                when (range) {
+                    TimeRange.WEEK -> cal.add(Calendar.DAY_OF_YEAR, -7)
+                    TimeRange.MONTH -> cal.add(Calendar.MONTH, -1)
+                    TimeRange.SIX_MONTHS -> cal.add(Calendar.MONTH, -6)
+                    TimeRange.YEAR -> cal.add(Calendar.YEAR, -1)
+                }
+                val cutoffDate = cal.timeInMillis
 
                 // Filter by time range
-                val filtered = historyList.filter { it.timestamp >= cutoff }
-                    .sortedBy { it.timestamp }
+                val filtered = historyList.filter { hist ->
+                    val time = tryParseOfficialTime(hist.officialUpdateTime, sdf, fallbackSdf) ?: hist.timestamp
+                    time >= cutoffDate
+                }.sortedBy { tryParseOfficialTime(it.officialUpdateTime, sdf, fallbackSdf) ?: it.timestamp }
 
                 val descList = filtered.sortedByDescending { it.timestamp }
-                val ascList = filtered
+                val ascList = if (range == TimeRange.WEEK) {
+                    filtered
+                } else {
+                    // For longer periods, only use the latest quote of each day for the chart and statistics
+                    filtered.groupBy { it.officialUpdateTime.take(10) }
+                        .map { (_, dailyList) -> dailyList.maxByOrNull { tryParseOfficialTime(it.officialUpdateTime, sdf, fallbackSdf) ?: it.timestamp }!! }
+                        .sortedBy { tryParseOfficialTime(it.officialUpdateTime, sdf, fallbackSdf) ?: it.timestamp }
+                }
 
                 // Calculate current price from latest rate
                 val currentVal = latest?.getRate(type, side)?.toPlainString() ?: "N/A"
@@ -121,8 +145,8 @@ class DetailViewModel @Inject constructor(
                             pctStr = "$sign${pct.setScale(2, RoundingMode.HALF_UP).toPlainString()}%"
                         }
                     } else {
-                        changeAmtStr = "+0.0000"
-                        pctStr = "+0.00%"
+                        changeAmtStr = "資料不足"
+                        pctStr = "資料不足"
                     }
                 } else {
                     dateRangeStr = "該區間無有效 ${type.toLabel()}${side.toLabel()} 報價"
@@ -171,6 +195,18 @@ class DetailViewModel @Inject constructor(
             RateType.CASH -> if (side == BankSide.BUY) cashBuy else cashSell
         }
         return str?.toBigDecimalOrNull()
+    }
+
+    private fun tryParseOfficialTime(timeStr: String, sdf: SimpleDateFormat, fallbackSdf: SimpleDateFormat): Long? {
+        return try {
+            sdf.parse(timeStr)?.time
+        } catch (e: Exception) {
+            try {
+                fallbackSdf.parse(timeStr)?.time
+            } catch (e2: Exception) {
+                null
+            }
+        }
     }
 
     private fun RateType.toLabel(): String = if (this == RateType.SPOT) "即期" else "現鈔"

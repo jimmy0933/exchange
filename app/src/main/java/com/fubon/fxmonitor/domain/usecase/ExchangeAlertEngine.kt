@@ -72,17 +72,19 @@ class ExchangeAlertEngine @Inject constructor(
                             val pct = currentRateVal.subtract(prevVal)
                                 .divide(prevVal, 6, RoundingMode.HALF_UP)
                                 .multiply(BigDecimal("100")).toDouble()
+                            // For single change we trigger if current change percentage is >= targetValue or <= -targetValue (depending on how the user thinks).
+                            // Wait, the prompt says "單次漲跌幅百分比" -> user expects it to trigger when it drops OR rises.
                             isConditionMet = Math.abs(pct) >= alert.targetValue
                             desc = "單次漲跌幅達 ${alert.targetValue}%"
                         }
                     }
                 }
                 TriggerCondition.DAILY_CHANGE_PCT -> {
-                    val history = rateDao.getLatestTwoHistory(alert.currencyCode)
-                    if (history.size >= 2) {
+                    val prevDayHistory = rateDao.getPreviousDayHistory(alert.currencyCode, rate.officialUpdateTime)
+                    if (prevDayHistory != null) {
                         val prevValStr = when (type) {
-                            RateType.SPOT -> if (side == BankSide.BUY) history[1].spotBuy else history[1].spotSell
-                            RateType.CASH -> if (side == BankSide.BUY) history[1].cashBuy else history[1].cashSell
+                            RateType.SPOT -> if (side == BankSide.BUY) prevDayHistory.spotBuy else prevDayHistory.spotSell
+                            RateType.CASH -> if (side == BankSide.BUY) prevDayHistory.cashBuy else prevDayHistory.cashSell
                         }
                         val prevVal = prevValStr?.toBigDecimalOrNull()
                         if (prevVal != null && prevVal.compareTo(BigDecimal.ZERO) != 0) {

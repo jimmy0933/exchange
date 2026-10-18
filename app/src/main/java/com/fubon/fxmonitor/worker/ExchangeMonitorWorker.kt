@@ -53,18 +53,8 @@ class ExchangeMonitorWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val refreshResult = repository.refreshRates()
         return refreshResult.fold(
-            onSuccess = { rates ->
-                val alertResults = alertEngine.evaluateAllAlerts(rates)
-                val sound = userPrefs.soundEnabled.first()
-                val vibration = userPrefs.vibrationEnabled.first()
-
-                for (res in alertResults) {
-                    if (res.isTriggered) {
-                        notificationManager.sendAlertNotification(res, sound, vibration)
-                    }
-                }
-
-                // Update Glance widgets
+            onSuccess = {
+                // Update Glance widgets (alert logic is now inside repository)
                 try {
                     WidgetUpdater.updateAllWidgets(context)
                 } catch (e: Exception) {

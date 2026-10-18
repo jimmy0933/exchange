@@ -8,7 +8,15 @@ import com.fubon.fxmonitor.widget.WidgetUpdater
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import com.fubon.fxmonitor.domain.usecase.ExchangeAlertEngine
+import com.fubon.fxmonitor.notification.FubonNotificationManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.math.BigDecimal
 import java.math.RoundingMode
 import javax.inject.Inject
@@ -17,37 +25,51 @@ import javax.inject.Singleton
 @Singleton
 class ExchangeRateRepository @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val database: AppDatabase,
     private val rateProvider: ExchangeRateProvider,
     private val rateDao: RateDao,
     private val errorLogDao: ErrorLogDao,
-    private val userPrefs: UserPreferencesRepository
+    private val userPrefs: UserPreferencesRepository,
+    private val alertEngine: ExchangeAlertEngine,
+    private val notificationManager: FubonNotificationManager
 ) {
 
     val latestRates: Flow<List<ExchangeRate>> = rateDao.getAllLatestRates().map { entities ->
         entities.map { it.toDomain() }
     }
 
+    private val updateMutex = Mutex()
+
     suspend fun refreshRates(): Result<List<ExchangeRate>> {
+        return updateMutex.withLock {
+            refreshRatesInternal()
+        }
+    }
+
+    private suspend fun refreshRatesInternal(): Result<List<ExchangeRate>> {
         val result = rateProvider.fetchRates()
         return result.fold(
             onSuccess = { rates ->
                 val now = System.currentTimeMillis()
-                userPrefs.setLastSuccessTime(now)
 
-                // Get existing favorites mapping
                 val existingEntities = rateDao.getAllLatestRates().first().associateBy { it.currencyCode }
 
                 val entitiesToInsert = rates.mapIndexed { index, rate ->
                     val existing = existingEntities[rate.currency.name]
+
+                    if (existing != null && existing.officialUpdateTime > rate.officialUpdateTime) {
+                        return@mapIndexed existing
+                    }
+
                     val isFav = existing?.isFavorite ?: CurrencyCode.DEFAULT_FAVORITES.contains(rate.currency)
                     val order = existing?.displayOrder ?: index
 
                     LatestRateEntity(
                         currencyCode = rate.currency.name,
-                        spotBuy = rate.spotBuy?.toPlainString(),
-                        spotSell = rate.spotSell?.toPlainString(),
-                        cashBuy = rate.cashBuy?.toPlainString(),
-                        cashSell = rate.cashSell?.toPlainString(),
+                        spotBuy = rate.spotBuy?.toPlainString() ?: existing?.spotBuy,
+                        spotSell = rate.spotSell?.toPlainString() ?: existing?.spotSell,
+                        cashBuy = rate.cashBuy?.toPlainString() ?: existing?.cashBuy,
+                        cashSell = rate.cashSell?.toPlainString() ?: existing?.cashSell,
                         officialUpdateTime = rate.officialUpdateTime,
                         localFetchTime = now,
                         source = rate.source,
@@ -56,31 +78,46 @@ class ExchangeRateRepository @Inject constructor(
                     )
                 }
 
-                rateDao.insertLatestRates(entitiesToInsert)
+                database.withTransaction {
+                    rateDao.insertLatestRates(entitiesToInsert)
 
-                // Save to history deduplicating by officialUpdateTime
-                for (rate in rates) {
-                    val existingHist = rateDao.getHistoryByOfficialTime(rate.currency.name, rate.officialUpdateTime)
-                    if (existingHist == null) {
-                        rateDao.insertHistory(
-                            RateHistoryEntity(
-                                currencyCode = rate.currency.name,
-                                spotBuy = rate.spotBuy?.toPlainString(),
-                                spotSell = rate.spotSell?.toPlainString(),
-                                cashBuy = rate.cashBuy?.toPlainString(),
-                                cashSell = rate.cashSell?.toPlainString(),
-                                officialUpdateTime = rate.officialUpdateTime,
-                                timestamp = now,
-                                isOfficialDaily = false,
-                                source = rate.source
+                    for (rate in rates) {
+                        val existingHist = rateDao.getHistoryByOfficialTime(rate.currency.name, rate.officialUpdateTime)
+                        if (existingHist == null) {
+                            rateDao.insertHistory(
+                                RateHistoryEntity(
+                                    currencyCode = rate.currency.name,
+                                    spotBuy = rate.spotBuy?.toPlainString(),
+                                    spotSell = rate.spotSell?.toPlainString(),
+                                    cashBuy = rate.cashBuy?.toPlainString(),
+                                    cashSell = rate.cashSell?.toPlainString(),
+                                    officialUpdateTime = rate.officialUpdateTime,
+                                    timestamp = now,
+                                    isOfficialDaily = false,
+                                    source = rate.source
+                                )
                             )
-                        )
+                        }
                     }
                 }
+
+                userPrefs.setLastSuccessTime(now)
 
                 // Notify widgets to redraw with fresh data
                 runCatching {
                     WidgetUpdater.updateAllWidgets(context)
+                }
+
+                // Evaluate alerts
+                CoroutineScope(Dispatchers.IO).launch {
+                    val alertResults = alertEngine.evaluateAllAlerts(rates)
+                    val sound = userPrefs.soundEnabled.first()
+                    val vibration = userPrefs.vibrationEnabled.first()
+                    for (res in alertResults) {
+                        if (res.isTriggered) {
+                            notificationManager.sendAlertNotification(res, sound, vibration)
+                        }
+                    }
                 }
 
                 Result.success(rates)

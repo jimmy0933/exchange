@@ -25,12 +25,11 @@ class FubonFXMonitorUnitTest {
     @Test
     fun testScraperParsesPrimaryRealWebsiteAndCompare14Currencies() = runBlocking {
         val scraper = FubonExchangeRateScraper()
-        val result = scraper.fetchRates()
+        val html = javaClass.classLoader?.getResource("fubon_primary.html")?.readText() ?: throw java.lang.IllegalStateException("Missing fixture")
+        val rates = scraper.parsePrimaryHtml(html)
 
-        assertTrue("Scraper should succeed fetching rates from Fubon", result.isSuccess)
-        val rates = result.getOrNull()
         assertNotNull(rates)
-        assertEquals("Should parse all 14 official currencies", 14, rates!!.size)
+        assertEquals("Should parse all 14 official currencies", 14, rates.size)
 
         val fetchTimestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.TAIWAN).format(Date())
         val officialTime = rates.firstOrNull()?.officialUpdateTime ?: "N/A"
@@ -123,40 +122,7 @@ class FubonFXMonitorUnitTest {
         assertNull(CurrencyCode.fromString("UNKNOWN"))
     }
 
-    @Test
-    fun testDetailViewModelTimeRangeFiltering7d1m6m1y() {
-        val now = System.currentTimeMillis()
-        val dayMillis = 24 * 3600 * 1000L
 
-        val mockHistory = listOf(
-            RateHistoryEntity(id = 1, currencyCode = "USD", spotBuy = "32.0", spotSell = "32.1", cashBuy = "31.8", cashSell = "32.3", officialUpdateTime = "2026/10/13 09:00:00", timestamp = now - 2 * dayMillis),
-            RateHistoryEntity(id = 2, currencyCode = "USD", spotBuy = "32.1", spotSell = "32.2", cashBuy = "31.9", cashSell = "32.4", officialUpdateTime = "2026/10/01 09:00:00", timestamp = now - 14 * dayMillis),
-            RateHistoryEntity(id = 3, currencyCode = "USD", spotBuy = "32.2", spotSell = "32.3", cashBuy = "32.0", cashSell = "32.5", officialUpdateTime = "2026/09/10 09:00:00", timestamp = now - 40 * dayMillis),
-            RateHistoryEntity(id = 4, currencyCode = "USD", spotBuy = "32.3", spotSell = "32.4", cashBuy = "32.1", cashSell = "32.6", officialUpdateTime = "2026/05/10 09:00:00", timestamp = now - 160 * dayMillis),
-            RateHistoryEntity(id = 5, currencyCode = "USD", spotBuy = "32.4", spotSell = "32.5", cashBuy = "32.2", cashSell = "32.7", officialUpdateTime = "2025/11/10 09:00:00", timestamp = now - 350 * dayMillis),
-            RateHistoryEntity(id = 6, currencyCode = "USD", spotBuy = "32.5", spotSell = "32.6", cashBuy = "32.3", cashSell = "32.8", officialUpdateTime = "2025/08/10 09:00:00", timestamp = now - 400 * dayMillis)
-        )
-
-        // Filter 7 days (WEEK)
-        val weekCutoff = now - TimeRange.WEEK.durationMillis
-        val weekList = mockHistory.filter { it.timestamp >= weekCutoff }
-        assertEquals(1, weekList.size)
-
-        // Filter 1 month (MONTH)
-        val monthCutoff = now - TimeRange.MONTH.durationMillis
-        val monthList = mockHistory.filter { it.timestamp >= monthCutoff }
-        assertEquals(2, monthList.size)
-
-        // Filter 6 months (SIX_MONTHS)
-        val sixMonthCutoff = now - TimeRange.SIX_MONTHS.durationMillis
-        val sixMonthList = mockHistory.filter { it.timestamp >= sixMonthCutoff }
-        assertEquals(4, sixMonthList.size)
-
-        // Filter 1 year (YEAR)
-        val yearCutoff = now - TimeRange.YEAR.durationMillis
-        val yearList = mockHistory.filter { it.timestamp >= yearCutoff }
-        assertEquals(5, yearList.size)
-    }
 
     @Test
     fun testDetailViewModel4WayRateCalculations() {

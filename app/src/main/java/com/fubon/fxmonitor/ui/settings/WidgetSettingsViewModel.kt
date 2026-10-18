@@ -15,10 +15,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import javax.inject.Inject
 
 data class WidgetSettingsUiState(
     val activeWidgetIds: List<String> = emptyList(),
+    val widgetTypes: Map<String, String> = emptyMap(),
     val selectedWidgetId: String = "default_widget",
     val rateType: RateType = RateType.SPOT,
     val selectedCurrencies: List<CurrencyCode> = listOf(CurrencyCode.USD, CurrencyCode.JPY),
@@ -39,6 +41,8 @@ class WidgetSettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(WidgetSettingsUiState())
     val uiState: StateFlow<WidgetSettingsUiState> = _uiState.asStateFlow()
 
+    private var loadJob: Job? = null
+
     init {
         loadActiveWidgets()
         observeRates()
@@ -46,26 +50,32 @@ class WidgetSettingsViewModel @Inject constructor(
 
     private fun loadActiveWidgets() {
         viewModelScope.launch {
-            val ids = WidgetUpdater.getPlacedWidgetIds(context)
-            val widgetList = if (ids.isEmpty()) listOf("default_widget") else ids
+            val types = WidgetUpdater.getPlacedWidgetTypes(context)
+            val widgetList = types.keys.toList()
             _uiState.update {
                 it.copy(
                     activeWidgetIds = widgetList,
-                    selectedWidgetId = widgetList.first()
+                    widgetTypes = types,
+                    selectedWidgetId = widgetList.firstOrNull() ?: "no_widget"
                 )
             }
-            loadConfigForWidget(widgetList.first())
+            if (widgetList.isNotEmpty()) {
+                loadConfigForWidget(widgetList.first())
+            }
         }
     }
 
     fun selectWidget(widgetId: String) {
+        if (widgetId == "no_widget") return
         _uiState.update { it.copy(selectedWidgetId = widgetId, isSaved = false) }
         loadConfigForWidget(widgetId)
     }
 
     private fun loadConfigForWidget(widgetId: String) {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             userPrefs.getWidgetConfig(widgetId).first().let { config ->
+                if (_uiState.value.selectedWidgetId != widgetId) return@launch
                 val currencies = config.selectedCurrencies.take(8).ifEmpty { listOf(CurrencyCode.USD, CurrencyCode.JPY) }
                 _uiState.update {
                     it.copy(
@@ -141,6 +151,7 @@ class WidgetSettingsViewModel @Inject constructor(
     fun saveConfig() {
         viewModelScope.launch {
             val state = _uiState.value
+            if (state.selectedWidgetId == "no_widget") return@launch
             val config = WidgetConfig(
                 appWidgetId = state.selectedWidgetId,
                 rateType = state.rateType,

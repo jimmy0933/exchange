@@ -250,6 +250,34 @@ fun AddAlertDialog(
                     )
                 }
 
+                Text("提醒條件:", fontWeight = FontWeight.Bold)
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = uiState.selectedCondition == TriggerCondition.GREATER_EQUAL,
+                            onClick = { onConditionChange(TriggerCondition.GREATER_EQUAL) }
+                        )
+                        Text("大於等於目標匯率")
+                        RadioButton(
+                            selected = uiState.selectedCondition == TriggerCondition.LESS_EQUAL,
+                            onClick = { onConditionChange(TriggerCondition.LESS_EQUAL) }
+                        )
+                        Text("小於等於目標匯率")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = uiState.selectedCondition == TriggerCondition.SINGLE_CHANGE_PCT,
+                            onClick = { onConditionChange(TriggerCondition.SINGLE_CHANGE_PCT) }
+                        )
+                        Text("單次漲跌幅(%)")
+                        RadioButton(
+                            selected = uiState.selectedCondition == TriggerCondition.DAILY_CHANGE_PCT,
+                            onClick = { onConditionChange(TriggerCondition.DAILY_CHANGE_PCT) }
+                        )
+                        Text("每日漲跌幅(%)")
+                    }
+                }
+
                 OutlinedTextField(
                     value = uiState.targetValueInput,
                     onValueChange = onValueChange,
