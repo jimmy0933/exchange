@@ -104,10 +104,4 @@ class SettingsViewModel @Inject constructor(
             errorLogDao.clearLogs()
         }
     }
-
-    fun refreshRatesNow() {
-        viewModelScope.launch {
-            repository.refreshRates()
-        }
-    }
 }

@@ -197,7 +197,7 @@ class FubonExchangeRateScraper @Inject constructor() : ExchangeRateProvider {
     }
 
     private fun parsePair(text: String): Pair<BigDecimal?, BigDecimal?> {
-        val trimmed = text.trim()
+        val trimmed = text.replace('\u00A0', ' ').trim()
         val parts = trimmed.split(Regex("""\s+""")).filter { it.isNotBlank() }
         val buy = parts.getOrNull(0)?.let { if (it.contains("---")) null else it.toBigDecimalOrNull() }
         val sell = parts.getOrNull(1)?.let { if (it.contains("---")) null else it.toBigDecimalOrNull() }
